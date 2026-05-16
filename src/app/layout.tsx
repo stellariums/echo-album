@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { BottomNav } from "@/components/BottomNav";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -28,23 +29,10 @@ export default function RootLayout({
               </span>
               <span>回声相册</span>
             </Link>
-            <nav className="flex items-center gap-1 text-sm">
-              <Link
-                href="/create"
-                className="px-3 py-1.5 rounded-full text-ink-sub hover:bg-paper-bg hover:text-ink-main transition"
-              >
-                创建
-              </Link>
-              <Link
-                href="/search"
-                className="px-3 py-1.5 rounded-full text-ink-sub hover:bg-paper-bg hover:text-ink-main transition"
-              >
-                搜索
-              </Link>
-            </nav>
           </div>
         </header>
-        <main className="mx-auto max-w-3xl px-5 py-6 pb-20">{children}</main>
+        <main className="mx-auto max-w-3xl px-5 py-6 pb-32">{children}</main>
+        <BottomNav />
       </body>
     </html>
   );

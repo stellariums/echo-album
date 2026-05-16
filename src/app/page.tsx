@@ -4,13 +4,19 @@ import { prisma } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const recent = await prisma.memory.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 8,
-  });
+  const [recent, totalCount] = await Promise.all([
+    prisma.memory.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 6,
+    }),
+    prisma.memory.count(),
+  ]);
+
+  const withAudio = recent.filter((m) => m.audioUrl).length;
+  const completed = recent.filter((m) => m.status === "completed").length;
 
   return (
-    <div className="space-y-8 py-2">
+    <div className="space-y-7 py-2">
       <header className="space-y-3 pt-2">
         <div className="text-xs font-semibold text-brand-teal uppercase tracking-[0.2em]">
           Echo Album
@@ -25,55 +31,34 @@ export default async function HomePage() {
         </p>
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Link
-          href="/create"
-          className="group block rounded-3xl bg-white p-5 shadow-soft-sm hover:shadow-soft transition"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-brand-teal flex items-center justify-center shadow-glow-teal shrink-0">
-              <svg viewBox="0 0 24 24" className="w-5 h-5 fill-white">
-                <path d="M4 5h3l2-2h6l2 2h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zm8 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10z" />
-              </svg>
-            </div>
-            <div className="min-w-0">
-              <div className="font-semibold text-ink-main">创建记忆</div>
-              <div className="text-xs text-ink-sub mt-0.5">
-                上传一张照片，录一句话
-              </div>
-            </div>
-          </div>
-        </Link>
-
-        <Link
-          href="/search"
-          className="group block rounded-3xl bg-white p-5 shadow-soft-sm hover:shadow-soft transition"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-brand-orange flex items-center justify-center shadow-soft-sm shrink-0">
-              <svg viewBox="0 0 24 24" className="w-5 h-5 fill-white">
-                <path d="M15.5 14h-.8l-.27-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.6 4.23-1.57l.27.28v.79L19 20.49 20.49 19l-4.99-5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z" />
-              </svg>
-            </div>
-            <div className="min-w-0">
-              <div className="font-semibold text-ink-main">搜索记忆</div>
-              <div className="text-xs text-ink-sub mt-0.5">
-                用自然语言找回照片
-              </div>
-            </div>
-          </div>
-        </Link>
+      {/* Stats card */}
+      <div className="rounded-3xl bg-white p-5 shadow-soft-sm">
+        <div className="text-xs font-semibold text-ink-mute uppercase tracking-[0.15em] mb-3">
+          我的记忆
+        </div>
+        <div className="flex items-baseline gap-6">
+          <Stat value={totalCount} label="张记忆" accent="text-brand-teal" />
+          <Stat value={withAudio} label="带录音" accent="text-brand-orange" />
+          <Stat value={completed} label="已完成" />
+        </div>
       </div>
 
+      {/* Recent memories */}
       <section className="space-y-3">
         <div className="flex items-baseline justify-between px-1">
           <h2 className="text-xs font-semibold text-ink-mute uppercase tracking-[0.2em]">
             最近记忆
           </h2>
-          {recent.length > 0 && (
-            <span className="text-xs text-ink-mute">
-              {recent.length} 张
-            </span>
+          {totalCount > recent.length && (
+            <Link
+              href="/memories"
+              className="text-xs text-brand-teal hover:text-brand-teal-deep font-semibold flex items-center gap-1"
+            >
+              查看全部
+              <svg viewBox="0 0 24 24" className="w-3 h-3 fill-current">
+                <path d="M8.59 16.59 13.17 12 8.59 7.41 10 6l6 6-6 6z" />
+              </svg>
+            </Link>
           )}
         </div>
 
@@ -124,6 +109,27 @@ export default async function HomePage() {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function Stat({
+  value,
+  label,
+  accent,
+}: {
+  value: number;
+  label: string;
+  accent?: string;
+}) {
+  return (
+    <div>
+      <div
+        className={`text-2xl font-bold tabular-nums ${accent ?? "text-ink-main"}`}
+      >
+        {value}
+      </div>
+      <div className="text-xs text-ink-mute mt-0.5">{label}</div>
     </div>
   );
 }
