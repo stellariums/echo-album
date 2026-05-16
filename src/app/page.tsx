@@ -1,17 +1,44 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { prisma } from "@/lib/db";
+import { apiFetch, assetUrl } from "@/lib/config";
 
-export const dynamic = "force-dynamic";
+interface Memory {
+  id: string;
+  title: string | null;
+  imageUrl: string;
+  audioUrl: string | null;
+  status: string;
+  createdAt: string;
+}
 
-export default async function HomePage() {
-  const [recent, totalCount] = await Promise.all([
-    prisma.memory.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 6,
-    }),
-    prisma.memory.count(),
-  ]);
+export default function HomePage() {
+  const [memories, setMemories] = useState<Memory[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await apiFetch("/api/memories", { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = (await res.json()) as Memory[];
+        if (!cancelled) setMemories(data);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "加载失败");
+        }
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const recent = memories?.slice(0, 6) ?? [];
+  const totalCount = memories?.length ?? 0;
   const withAudio = recent.filter((m) => m.audioUrl).length;
   const completed = recent.filter((m) => m.status === "completed").length;
 
@@ -62,7 +89,15 @@ export default async function HomePage() {
           )}
         </div>
 
-        {recent.length === 0 ? (
+        {error ? (
+          <div className="rounded-3xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            加载失败：{error}
+          </div>
+        ) : memories === null ? (
+          <div className="rounded-3xl bg-white p-8 text-center text-sm text-ink-mute shadow-soft-sm">
+            加载中…
+          </div>
+        ) : recent.length === 0 ? (
           <div className="rounded-3xl bg-white p-10 text-center shadow-soft-sm">
             <div className="text-4xl mb-3">📷</div>
             <div className="text-sm text-ink-sub mb-3">还没有记忆</div>
@@ -78,13 +113,13 @@ export default async function HomePage() {
             {recent.map((m) => (
               <Link
                 key={m.id}
-                href={`/memory/${m.id}`}
+                href={`/memory?id=${m.id}`}
                 className="block rounded-3xl bg-white p-1.5 shadow-soft-sm hover:shadow-soft transition group"
               >
                 <div className="relative aspect-square rounded-[18px] overflow-hidden bg-paper-bg">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={m.imageUrl}
+                    src={assetUrl(m.imageUrl)}
                     alt={m.title ?? "memory"}
                     className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
                   />
@@ -101,7 +136,7 @@ export default async function HomePage() {
                     {m.title ?? "未命名记忆"}
                   </div>
                   <div className="text-[11px] text-ink-mute mt-0.5">
-                    {m.createdAt.toLocaleDateString("zh-CN")}
+                    {new Date(m.createdAt).toLocaleDateString("zh-CN")}
                   </div>
                 </div>
               </Link>

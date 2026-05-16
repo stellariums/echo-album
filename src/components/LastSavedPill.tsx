@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { apiFetch, assetUrl } from "@/lib/config";
 
 interface LastSaved {
   id: string;
@@ -36,7 +37,7 @@ export function LastSavedPill({ saved }: { saved: LastSaved | null }) {
 
     async function tick() {
       try {
-        const res = await fetch(`/api/memories/${saved!.id}`, {
+        const res = await apiFetch(`/api/memories/${saved!.id}`, {
           cache: "no-store",
         });
         if (!res.ok) return;
@@ -72,7 +73,7 @@ export function LastSavedPill({ saved }: { saved: LastSaved | null }) {
 
   return (
     <Link
-      href={`/memory/${saved.id}`}
+      href={`/memory?id=${saved.id}`}
       className="block rounded-3xl bg-white shadow-soft-sm hover:shadow-soft transition p-2.5 group"
     >
       <div className="flex items-center gap-3">
@@ -80,7 +81,7 @@ export function LastSavedPill({ saved }: { saved: LastSaved | null }) {
         <div className="relative w-12 h-12 shrink-0 rounded-2xl overflow-hidden bg-paper-bg">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={saved.imageUrl}
+            src={assetUrl(saved.imageUrl)}
             alt=""
             className="w-full h-full object-cover"
           />

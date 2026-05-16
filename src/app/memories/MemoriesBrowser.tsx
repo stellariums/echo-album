@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AudioPlayer } from "@/components/AudioPlayer";
+import { apiFetch, assetUrl } from "@/lib/config";
 
 interface InitialMemory {
   id: string;
@@ -47,11 +48,56 @@ const EXAMPLE_QUERIES = [
   "适合写东西的咖啡店",
 ];
 
-export function MemoriesBrowser({ initial }: { initial: InitialMemory[] }) {
+export function MemoriesBrowser() {
+  const [initial, setInitial] = useState<InitialMemory[] | null>(null);
+  const [initialError, setInitialError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [response, setResponse] = useState<SearchResponse | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await apiFetch("/api/memories", { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const rows = (await res.json()) as Array<{
+          id: string;
+          title: string | null;
+          summary: string | null;
+          imageUrl: string;
+          audioUrl: string | null;
+          tags: string | null;
+          createdAt: string;
+          locationText: string | null;
+          status: string;
+        }>;
+        if (cancelled) return;
+        setInitial(
+          rows.map((m) => ({
+            id: m.id,
+            title: m.title,
+            summary: m.summary,
+            imageUrl: m.imageUrl,
+            audioUrl: m.audioUrl,
+            tags: m.tags ? (JSON.parse(m.tags) as string[]) : [],
+            createdAt: m.createdAt,
+            locationText: m.locationText,
+            status: m.status,
+          }))
+        );
+      } catch (err) {
+        if (!cancelled) {
+          setInitialError(err instanceof Error ? err.message : "加载失败");
+        }
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function runSearch(q: string) {
     const cleaned = q.trim();
@@ -61,7 +107,7 @@ export function MemoriesBrowser({ initial }: { initial: InitialMemory[] }) {
     setError(null);
     setResponse(null);
     try {
-      const res = await fetch("/api/search", {
+      const res = await apiFetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: cleaned }),
@@ -149,7 +195,11 @@ export function MemoriesBrowser({ initial }: { initial: InitialMemory[] }) {
 
       {/* Browse mode: examples + grid */}
       {!inSearchMode && (
-        <BrowseMode initial={initial} onExample={runSearch} />
+        <BrowseMode
+          initial={initial}
+          initialError={initialError}
+          onExample={runSearch}
+        />
       )}
 
       {/* Search mode states */}
@@ -176,9 +226,11 @@ export function MemoriesBrowser({ initial }: { initial: InitialMemory[] }) {
 
 function BrowseMode({
   initial,
+  initialError,
   onExample,
 }: {
-  initial: InitialMemory[];
+  initial: InitialMemory[] | null;
+  initialError: string | null;
   onExample: (q: string) => void;
 }) {
   return (
@@ -204,11 +256,19 @@ function BrowseMode({
       <section className="space-y-3 pt-2">
         <div className="flex items-baseline justify-between px-1">
           <h2 className="text-xs font-semibold text-ink-mute uppercase tracking-[0.2em]">
-            全部 · {initial.length} 张
+            全部 · {initial?.length ?? 0} 张
           </h2>
         </div>
 
-        {initial.length === 0 ? (
+        {initialError ? (
+          <div className="rounded-3xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            加载失败：{initialError}
+          </div>
+        ) : initial === null ? (
+          <div className="rounded-3xl bg-white p-8 text-center text-sm text-ink-mute shadow-soft-sm">
+            加载中…
+          </div>
+        ) : initial.length === 0 ? (
           <div className="rounded-3xl bg-white p-10 text-center shadow-soft-sm">
             <div className="text-4xl mb-3">📷</div>
             <div className="text-sm text-ink-sub mb-3">还没有记忆</div>
@@ -224,13 +284,13 @@ function BrowseMode({
             {initial.map((m) => (
               <Link
                 key={m.id}
-                href={`/memory/${m.id}`}
+                href={`/memory?id=${m.id}`}
                 className="block rounded-3xl bg-white p-1.5 shadow-soft-sm hover:shadow-soft transition group"
               >
                 <div className="relative aspect-square rounded-[18px] overflow-hidden bg-paper-bg">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={m.imageUrl}
+                    src={assetUrl(m.imageUrl)}
                     alt={m.title ?? "memory"}
                     className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
                   />
@@ -340,13 +400,13 @@ function SearchResultsView({
 
 function FeaturedResult({ result }: { result: SearchResult }) {
   return (
-    <Link href={`/memory/${result.id}`} className="block group">
+    <Link href={`/memory?id=${result.id}`} className="block group">
       <div className="relative">
         <div className="rounded-4xl bg-white p-1.5 shadow-soft">
           <div className="relative aspect-[4/5] rounded-[24px] overflow-hidden bg-paper-bg">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={result.imageUrl}
+              src={assetUrl(result.imageUrl)}
               alt={result.title ?? ""}
               className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-300"
             />
@@ -377,7 +437,7 @@ function FeaturedResult({ result }: { result: SearchResult }) {
           )}
           {result.audioUrl && (
             <div onClick={(e) => e.preventDefault()}>
-              <AudioPlayer src={result.audioUrl} seed={result.id} />
+              <AudioPlayer src={assetUrl(result.audioUrl)} seed={result.id} />
             </div>
           )}
           {result.matchedKeywords.length > 0 && (
@@ -401,14 +461,14 @@ function FeaturedResult({ result }: { result: SearchResult }) {
 function CompactResult({ result, rank }: { result: SearchResult; rank: number }) {
   return (
     <Link
-      href={`/memory/${result.id}`}
+      href={`/memory?id=${result.id}`}
       className="block rounded-3xl bg-white p-3 shadow-soft-sm hover:shadow-soft transition"
     >
       <div className="flex gap-3">
         <div className="relative w-24 h-24 shrink-0 rounded-2xl overflow-hidden bg-paper-bg">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={result.imageUrl}
+            src={assetUrl(result.imageUrl)}
             alt={result.title ?? ""}
             className="w-full h-full object-cover"
           />

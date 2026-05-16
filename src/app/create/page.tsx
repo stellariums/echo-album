@@ -4,6 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { compressImage } from "@/lib/image";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { LastSavedPill } from "@/components/LastSavedPill";
+import { apiFetch } from "@/lib/config";
+import {
+  captureFromCamera,
+  isNative,
+  startNativeRecording,
+  stopNativeRecording,
+} from "@/lib/native";
 
 const MAX_RECORD_SECONDS = 60;
 const MIN_RECORD_MS = 800;
@@ -63,6 +70,7 @@ export default function CreatePage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const startTimeRef = useRef<number>(0);
   const autoStoppedRef = useRef<boolean>(false);
+  const nativeRecordingRef = useRef<boolean>(false);
 
   useEffect(() => {
     return () => {
@@ -73,9 +81,7 @@ export default function CreatePage() {
     };
   }, [imagePreview, audioPreview]);
 
-  async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function processImageFile(file: File) {
     setError(null);
     setImageProcessing(true);
     try {
@@ -93,6 +99,26 @@ export default function CreatePage() {
     }
   }
 
+  async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processImageFile(file);
+  }
+
+  async function handleNativeCameraClick(e: React.MouseEvent) {
+    if (!isNative()) return;
+    e.preventDefault();
+    try {
+      const file = await captureFromCamera();
+      if (file) await processImageFile(file);
+    } catch (err) {
+      setError(
+        "无法访问相机：" +
+          (err instanceof Error ? err.message : "未知错误")
+      );
+    }
+  }
+
   function resetImage() {
     if (imagePreview) URL.revokeObjectURL(imagePreview);
     setImageFile(null);
@@ -103,6 +129,30 @@ export default function CreatePage() {
   async function startRecording() {
     setError(null);
     setInfo(null);
+
+    if (isNative()) {
+      try {
+        await startNativeRecording();
+        nativeRecordingRef.current = true;
+        autoStoppedRef.current = false;
+        startTimeRef.current = Date.now();
+        setRecording(true);
+        setRecordSeconds(0);
+        timerRef.current = setInterval(() => {
+          const elapsedSec = (Date.now() - startTimeRef.current) / 1000;
+          setRecordSeconds(Math.min(MAX_RECORD_SECONDS, Math.floor(elapsedSec)));
+          if (elapsedSec >= MAX_RECORD_SECONDS) {
+            stopRecording(true);
+          }
+        }, 250);
+      } catch (err) {
+        setError(
+          "无法启动录音：" + (err instanceof Error ? err.message : "未知错误")
+        );
+      }
+      return;
+    }
+
     if (typeof window !== "undefined" && !window.isSecureContext) {
       setError("当前页面不是安全上下文，浏览器会禁止录音。请使用 http://localhost 或 HTTPS 地址访问。");
       return;
@@ -166,6 +216,42 @@ export default function CreatePage() {
   }
 
   function stopRecording(autoStop = false) {
+    if (nativeRecordingRef.current) {
+      autoStoppedRef.current = autoStop;
+      const durationMs = Date.now() - startTimeRef.current;
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      setRecording(false);
+      nativeRecordingRef.current = false;
+      void (async () => {
+        try {
+          const result = await stopNativeRecording();
+          if (
+            durationMs < MIN_RECORD_MS ||
+            result.blob.size < MIN_AUDIO_BYTES
+          ) {
+            setError("录音太短（少于 1 秒），请重新录制。");
+            setRecordSeconds(0);
+            return;
+          }
+          if (audioPreview) URL.revokeObjectURL(audioPreview);
+          setAudioBlob(result.blob);
+          setAudioPreview(URL.createObjectURL(result.blob));
+          if (autoStoppedRef.current) {
+            setInfo(`录音已达 ${MAX_RECORD_SECONDS} 秒上限，自动停止。`);
+          }
+        } catch (err) {
+          setError(
+            "录音保存失败：" +
+              (err instanceof Error ? err.message : "未知错误")
+          );
+        }
+      })();
+      return;
+    }
+
     if (!recorderRef.current) return;
     autoStoppedRef.current = autoStop;
     recorderRef.current.stop();
@@ -211,7 +297,7 @@ export default function CreatePage() {
 
     try {
       setSubmitStage("uploading");
-      const res = await fetch("/api/memories", {
+      const res = await apiFetch("/api/memories", {
         method: "POST",
         body: formData,
       });
@@ -295,6 +381,7 @@ export default function CreatePage() {
           </div>
         ) : (
           <label
+            onClick={handleNativeCameraClick}
             className={`flex flex-col items-center justify-center rounded-3xl bg-white p-10 text-center cursor-pointer shadow-soft-sm transition ${
               imageProcessing
                 ? "text-ink-mute"
