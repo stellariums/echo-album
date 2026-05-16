@@ -82,12 +82,11 @@ export async function POST(req: NextRequest) {
 
   // --- Step 3: load full memory objects (preserving recall order) ---
   const recalledIds = recalled.map((r) => r.id);
+  const fetchedMemories = await prisma.memory.findMany({
+    where: { id: { in: recalledIds } },
+  });
   const memoriesById = new Map(
-    (
-      await prisma.memory.findMany({
-        where: { id: { in: recalledIds } },
-      })
-    ).map((m) => [m.id, m])
+    fetchedMemories.map((m) => [m.id, m] as const)
   );
   const orderedMemories = recalledIds
     .map((id) => memoriesById.get(id))

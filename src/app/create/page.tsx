@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { compressImage } from "@/lib/image";
 
+const MAX_RECORD_SECONDS = 60;
+const MIN_RECORD_MS = 800;
+const MIN_AUDIO_BYTES = 1024;
+
 export default function CreatePage() {
   const router = useRouter();
 
@@ -21,12 +25,15 @@ export default function CreatePage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const startTimeRef = useRef<number>(0);
+  const autoStoppedRef = useRef<boolean>(false);
 
   useEffect(() => {
     return () => {
@@ -66,6 +73,7 @@ export default function CreatePage() {
 
   async function startRecording() {
     setError(null);
+    setInfo(null);
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       setError("当前浏览器不支持录音，请改用 Chrome / Edge / Safari。");
       return;
@@ -75,26 +83,46 @@ export default function CreatePage() {
       streamRef.current = stream;
       const recorder = new MediaRecorder(stream);
       chunksRef.current = [];
+      autoStoppedRef.current = false;
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
       recorder.onstop = () => {
+        const durationMs = Date.now() - startTimeRef.current;
+        const wasAutoStopped = autoStoppedRef.current;
         const blob = new Blob(chunksRef.current, {
           type: recorder.mimeType || "audio/webm",
         });
+        streamRef.current?.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+
+        // Discard recordings that are too short or too small to be real speech
+        if (durationMs < MIN_RECORD_MS || blob.size < MIN_AUDIO_BYTES) {
+          setError("录音太短（少于 1 秒），请重新录制。");
+          setRecordSeconds(0);
+          return;
+        }
+
         if (audioPreview) URL.revokeObjectURL(audioPreview);
         setAudioBlob(blob);
         setAudioPreview(URL.createObjectURL(blob));
-        streamRef.current?.getTracks().forEach((t) => t.stop());
-        streamRef.current = null;
+        if (wasAutoStopped) {
+          setInfo(`录音已达 ${MAX_RECORD_SECONDS} 秒上限，自动停止。`);
+        }
       };
       recorderRef.current = recorder;
+      startTimeRef.current = Date.now();
       recorder.start();
       setRecording(true);
       setRecordSeconds(0);
+      // Tick frequently for smooth countdown; auto-stop when over cap.
       timerRef.current = setInterval(() => {
-        setRecordSeconds((s) => s + 1);
-      }, 1000);
+        const elapsedSec = (Date.now() - startTimeRef.current) / 1000;
+        setRecordSeconds(Math.min(MAX_RECORD_SECONDS, Math.floor(elapsedSec)));
+        if (elapsedSec >= MAX_RECORD_SECONDS) {
+          stopRecording(true);
+        }
+      }, 250);
     } catch (err) {
       setError(
         "无法访问麦克风：" +
@@ -103,8 +131,9 @@ export default function CreatePage() {
     }
   }
 
-  function stopRecording() {
+  function stopRecording(autoStop = false) {
     if (!recorderRef.current) return;
+    autoStoppedRef.current = autoStop;
     recorderRef.current.stop();
     recorderRef.current = null;
     if (timerRef.current) {
@@ -119,6 +148,7 @@ export default function CreatePage() {
     setAudioBlob(null);
     setAudioPreview(null);
     setRecordSeconds(0);
+    setInfo(null);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -248,7 +278,7 @@ export default function CreatePage() {
         ) : recording ? (
           <button
             type="button"
-            onClick={stopRecording}
+            onClick={() => stopRecording(false)}
             className="w-full flex items-center justify-center gap-3 rounded-xl border border-red-300 bg-red-50 p-4 hover:bg-red-100 transition"
           >
             <span className="relative flex h-3 w-3">
@@ -256,7 +286,19 @@ export default function CreatePage() {
               <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
             </span>
             <span className="text-red-700 font-medium">
-              正在录音 {recordSeconds}s — 点击停止
+              正在录音{" "}
+              <span
+                className={
+                  MAX_RECORD_SECONDS - recordSeconds <= 5
+                    ? "text-red-700 font-bold tabular-nums"
+                    : MAX_RECORD_SECONDS - recordSeconds <= 15
+                      ? "text-amber-700 font-bold tabular-nums"
+                      : "tabular-nums"
+                }
+              >
+                {recordSeconds}s / {MAX_RECORD_SECONDS}s
+              </span>{" "}
+              — 点击停止
             </span>
           </button>
         ) : (
@@ -266,7 +308,7 @@ export default function CreatePage() {
             className="w-full flex items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white p-4 text-stone-600 hover:border-stone-500 hover:text-stone-800 transition"
           >
             <span>🎙</span>
-            <span className="text-sm">开始录音</span>
+            <span className="text-sm">开始录音（最长 {MAX_RECORD_SECONDS} 秒）</span>
           </button>
         )}
       </section>
@@ -310,6 +352,12 @@ export default function CreatePage() {
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           {error}
+        </div>
+      )}
+
+      {info && !error && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+          {info}
         </div>
       )}
 

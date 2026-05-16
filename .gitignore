@@ -27,6 +27,11 @@ Thumbs.db
 # TypeScript incremental build cache
 *.tsbuildinfo
 
+# pnpm internal probes (atomic-write detection); harmless 0-byte files
+# left behind when the installer is interrupted.
+.__unlink_probe__
+_tmp_*
+
 # Logs
 *.log
 npm-debug.log*
