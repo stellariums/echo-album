@@ -140,7 +140,11 @@ export async function POST(req: NextRequest) {
     console.error(`[pipeline] memory ${memory.id} failed:`, err);
   });
 
-  return NextResponse.json({ id: memory.id, status: memory.status });
+  return NextResponse.json({
+    id: memory.id,
+    status: memory.status,
+    imageUrl: memory.imageUrl,
+  });
 }
 
 export async function GET() {

@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { compressImage } from "@/lib/image";
 import { AudioPlayer } from "@/components/AudioPlayer";
+import { LastSavedPill } from "@/components/LastSavedPill";
 
 const MAX_RECORD_SECONDS = 60;
 const MIN_RECORD_MS = 800;
@@ -30,8 +30,6 @@ function getRecordingErrorMessage(err: unknown): string {
 }
 
 export default function CreatePage() {
-  const router = useRouter();
-
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageProcessing, setImageProcessing] = useState(false);
@@ -46,10 +44,17 @@ export default function CreatePage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [submitStage, setSubmitStage] = useState<
-    "idle" | "uploading" | "creating"
+    "idle" | "uploading"
   >("idle");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+
+  // The most recent submission, shown as a pill above the form so the
+  // user can keep capturing without waiting for AI to finish.
+  const [lastSaved, setLastSaved] = useState<{
+    id: string;
+    imageUrl: string;
+  } | null>(null);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -188,6 +193,7 @@ export default function CreatePage() {
     }
     setSubmitting(true);
     setError(null);
+    setInfo(null);
 
     const formData = new FormData();
     formData.append("image", imageFile);
@@ -213,13 +219,27 @@ export default function CreatePage() {
         const data = await res.json().catch(() => ({}) as { error?: string });
         throw new Error(data.error || `请求失败 (${res.status})`);
       }
-      setSubmitStage("creating");
-      const { id } = (await res.json()) as { id: string };
-      router.push(`/memory/${id}`);
+      const { id, imageUrl } = (await res.json()) as {
+        id: string;
+        imageUrl: string;
+      };
+      // Reset the per-photo fields so the user can immediately keep capturing.
+      // Keep locationText — they're probably still in the same place.
+      if (imagePreview) URL.revokeObjectURL(imagePreview);
+      setImageFile(null);
+      setImagePreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (audioPreview) URL.revokeObjectURL(audioPreview);
+      setAudioBlob(null);
+      setAudioPreview(null);
+      setRecordSeconds(0);
+      setUserNote("");
+      setLastSaved({ id, imageUrl });
     } catch (err) {
       setError(
         "保存失败：" + (err instanceof Error ? err.message : "未知错误")
       );
+    } finally {
       setSubmitting(false);
       setSubmitStage("idle");
     }
@@ -227,15 +247,12 @@ export default function CreatePage() {
 
   const canSubmit = !!imageFile && !submitting && !imageProcessing;
 
-  const submitLabel =
-    submitStage === "uploading"
-      ? "上传中…"
-      : submitStage === "creating"
-        ? "进入详情页…"
-        : "保存记忆";
+  const submitLabel = submitStage === "uploading" ? "上传中…" : "保存记忆";
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5 py-2">
+      {lastSaved && <LastSavedPill saved={lastSaved} />}
+
       <header className="space-y-2 pt-2">
         <div className="text-xs font-semibold text-brand-teal uppercase tracking-[0.2em]">
           New Memory
