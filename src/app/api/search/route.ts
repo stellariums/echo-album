@@ -1,5 +1,6 @@
 // POST /api/search — natural-language memory retrieval.
-// Pipeline: planQuery (LLM) -> recall (keyword scoring) -> rerank (LLM) -> tiered response.
+// Pipeline: planQuery (LLM) -> recall (keyword scoring) -> rerank (LLM or
+// local synthesis when the candidate set is unambiguous) -> tiered response.
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
@@ -7,8 +8,13 @@ import {
   planQuery,
   rerankCandidates,
   type RerankCandidate,
+  type RerankResult,
 } from "@/lib/ai/llm";
 import { recallCandidates } from "@/lib/search/recall";
+import {
+  shouldSkipRerank,
+  synthesizeRerankResult,
+} from "@/lib/search/synthesize";
 
 export const runtime = "nodejs";
 
@@ -33,6 +39,7 @@ export interface SearchResponse {
   confidence: number;
   tier: "high" | "medium" | "low" | "empty";
   plan: Awaited<ReturnType<typeof planQuery>>;
+  rerankMode: "llm" | "single_candidate" | "dominant_score";
   results: SearchResult[];
   suggestions?: string[];
 }
@@ -74,6 +81,7 @@ export async function POST(req: NextRequest) {
       confidence: 0,
       tier: "empty",
       plan,
+      rerankMode: "llm",
       results: [],
       suggestions: SUGGESTION_POOL,
     };
@@ -92,20 +100,32 @@ export async function POST(req: NextRequest) {
     .map((id) => memoriesById.get(id))
     .filter((m): m is NonNullable<typeof m> => m != null);
 
-  const rerankInput: RerankCandidate[] = orderedMemories.map((m) => ({
-    id: m.id,
-    title: m.title,
-    summary: m.summary,
-    tags: m.tags ? (JSON.parse(m.tags) as string[]) : [],
-    speechText: m.speechText,
-    userNote: m.userNote,
-    ocrText: m.ocrText,
-    createdAt: m.createdAt.toISOString(),
-    locationText: m.locationText,
-  }));
-
-  // --- Step 4: rerank via LLM ---
-  const rerank = await rerankCandidates(query, rerankInput);
+  // --- Step 4: rerank — LLM call or local synthesis ---
+  // Skip the LLM rerank when the candidate set is unambiguous (one result
+  // or a clear winner). Saves ~7s per query in the common case.
+  const skip = shouldSkipRerank(recalled);
+  let rerank: RerankResult;
+  let rerankMode: SearchResponse["rerankMode"] = "llm";
+  if (skip.skip && skip.reason) {
+    rerank = synthesizeRerankResult(recalled, plan, {
+      id: orderedMemories[0].id,
+      title: orderedMemories[0].title,
+    });
+    rerankMode = skip.reason;
+  } else {
+    const rerankInput: RerankCandidate[] = orderedMemories.map((m) => ({
+      id: m.id,
+      title: m.title,
+      summary: m.summary,
+      tags: m.tags ? (JSON.parse(m.tags) as string[]) : [],
+      speechText: m.speechText,
+      userNote: m.userNote,
+      ocrText: m.ocrText,
+      createdAt: m.createdAt.toISOString(),
+      locationText: m.locationText,
+    }));
+    rerank = await rerankCandidates(query, rerankInput);
+  }
 
   // --- Step 5: tier the response by confidence (doc section 7.7) ---
   const tier: SearchResponse["tier"] =
@@ -160,6 +180,7 @@ export async function POST(req: NextRequest) {
     confidence: rerank.confidence,
     tier,
     plan,
+    rerankMode,
     results: trimmed,
     suggestions: tier === "low" ? SUGGESTION_POOL : undefined,
   };
