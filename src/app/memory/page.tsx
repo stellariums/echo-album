@@ -134,7 +134,7 @@ function MemoryDetail() {
         <button
           type="button"
           onClick={() => router.push("/")}
-          className="inline-flex items-center gap-1.5 rounded-full bg-brand-teal text-white px-4 py-2 text-sm font-medium shadow-glow-teal hover:bg-brand-teal-deep transition"
+          className="inline-flex items-center gap-1.5 rounded-full bg-coral-button text-white px-4 py-2 text-sm font-medium shadow-glow-coral hover:opacity-95 transition"
         >
           返回首页
         </button>
@@ -170,18 +170,29 @@ function MemoryDetail() {
       </Link>
 
       <div className="relative">
-        <div className="rounded-4xl bg-white p-1.5 shadow-soft">
-          <div className="rounded-[24px] overflow-hidden bg-paper-bg">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={assetUrl(memory.imageUrl)}
-              alt={memory.title ?? "memory"}
-              className="w-full max-h-[60vh] object-contain bg-paper-bg"
-            />
-          </div>
+        <div className="photo-frame mx-auto max-w-[340px]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={assetUrl(memory.imageUrl)}
+            alt={memory.title ?? "memory"}
+            className="w-full max-h-[60vh] object-contain bg-paper-bg"
+          />
         </div>
 
         <div className="-mt-10 mx-3 sm:mx-5 rounded-4xl glass p-5 sm:p-6 shadow-soft relative">
+          <div className="flex items-center justify-between dashed-divider pb-3 mb-3 text-xs text-ink-sub font-medium">
+            <span>随记感受</span>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="w-4 h-4 text-brand-coral"
+            >
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+            </svg>
+          </div>
+
           <h1 className="text-xl sm:text-2xl font-semibold text-ink-main tracking-tight mb-1">
             {memory.title ?? "未命名记忆"}
           </h1>
@@ -207,7 +218,7 @@ function MemoryDetail() {
               {tags.map((tag) => (
                 <span
                   key={tag}
-                  className="px-2.5 py-1 rounded-full bg-paper-bg text-ink-sub text-xs"
+                  className="px-2.5 py-1 rounded-full bg-paper-warm text-ink-sub text-xs"
                 >
                   {tag}
                 </span>
@@ -222,14 +233,14 @@ function MemoryDetail() {
           <Field
             label="语音转录"
             value={memory.speechText}
-            accent="text-brand-orange"
+            accent="text-brand-sunset"
           />
         )}
         {memory.userNote && (
           <Field
             label="你的备注"
             value={memory.userNote}
-            accent="text-brand-teal"
+            accent="text-brand-coral"
           />
         )}
         {memory.ocrText && <Field label="OCR 文本" value={memory.ocrText} />}
@@ -248,16 +259,16 @@ function MemoryDetail() {
 
       {ACTIVE_STATUSES.has(memory.status) && (
         <div className="rounded-3xl glass p-4 shadow-soft-sm space-y-2.5">
-          <div className="flex items-center gap-3 text-sm text-brand-teal">
+          <div className="flex items-center gap-3 text-sm text-brand-coral">
             <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-teal opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-teal"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-coral opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-coral"></span>
             </span>
             <span className="font-medium">{stage.label}</span>
           </div>
           <div className="h-1.5 rounded-full bg-paper-bg overflow-hidden">
             <div
-              className="h-full bg-brand-teal transition-all duration-500 ease-out"
+              className="h-full bg-coral-button transition-all duration-500 ease-out"
               style={{ width: `${stage.progress}%` }}
             />
           </div>
@@ -269,7 +280,7 @@ function MemoryDetail() {
           type="button"
           onClick={retry}
           disabled={retrying}
-          className="text-sm rounded-full border border-paper-edge bg-white px-4 py-2 text-ink-sub hover:border-brand-teal hover:text-brand-teal transition disabled:opacity-50"
+          className="text-sm rounded-full border border-paper-edge bg-white px-4 py-2 text-ink-sub hover:border-brand-coral hover:text-brand-coral transition disabled:opacity-50"
         >
           {retrying ? "重新生成中…" : "重新生成记忆卡"}
         </button>

@@ -42,10 +42,13 @@ export default function HomePage() {
   const withAudio = recent.filter((m) => m.audioUrl).length;
   const completed = recent.filter((m) => m.status === "completed").length;
 
+  // Top three photos for the stacked hero (mockup-style)
+  const stackPhotos = recent.slice(0, 3);
+
   return (
     <div className="space-y-7 py-2">
       <header className="space-y-3 pt-2">
-        <div className="text-xs font-semibold text-brand-teal uppercase tracking-[0.2em]">
+        <div className="text-xs font-semibold text-brand-coral uppercase tracking-[0.2em]">
           Echo Album
         </div>
         <h1 className="text-[28px] leading-tight font-bold text-ink-main tracking-tight">
@@ -58,19 +61,47 @@ export default function HomePage() {
         </p>
       </header>
 
+      {/* Stacked photo hero — leans on the polaroid look from the mockup */}
+      {stackPhotos.length > 0 && (
+        <div className="relative h-[260px] flex justify-center items-center">
+          {stackPhotos.map((m, i) => {
+            // i=0 main, i=1 left tilt, i=2 right tilt back
+            const transforms = [
+              "rotate-2 translate-y-3 z-30 shadow-photo-card",
+              "-rotate-6 -translate-x-4 z-20",
+              "rotate-[8deg] translate-x-5 -translate-y-2 z-10 opacity-80 scale-95",
+            ];
+            return (
+              <Link
+                key={m.id}
+                href={`/memory?id=${m.id}`}
+                className={`absolute photo-frame w-[260px] h-[200px] transition-transform duration-300 hover:scale-[1.02] ${transforms[i]}`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={assetUrl(m.imageUrl)}
+                  alt={m.title ?? "memory"}
+                  className="w-full h-full object-cover"
+                />
+              </Link>
+            );
+          })}
+        </div>
+      )}
+
       {/* Stats card */}
       <div className="rounded-3xl bg-white p-5 shadow-soft-sm">
         <div className="text-xs font-semibold text-ink-mute uppercase tracking-[0.15em] mb-3">
           我的记忆
         </div>
         <div className="flex items-baseline gap-6">
-          <Stat value={totalCount} label="张记忆" accent="text-brand-teal" />
-          <Stat value={withAudio} label="带录音" accent="text-brand-orange" />
+          <Stat value={totalCount} label="张记忆" accent="text-brand-coral" />
+          <Stat value={withAudio} label="带录音" accent="text-brand-sunset" />
           <Stat value={completed} label="已完成" />
         </div>
       </div>
 
-      {/* Recent memories */}
+      {/* Recent memories — small grid below stats */}
       <section className="space-y-3">
         <div className="flex items-baseline justify-between px-1">
           <h2 className="text-xs font-semibold text-ink-mute uppercase tracking-[0.2em]">
@@ -79,7 +110,7 @@ export default function HomePage() {
           {totalCount > recent.length && (
             <Link
               href="/memories"
-              className="text-xs text-brand-teal hover:text-brand-teal-deep font-semibold flex items-center gap-1"
+              className="text-xs text-brand-coral hover:text-brand-coral-deep font-semibold flex items-center gap-1"
             >
               查看全部
               <svg viewBox="0 0 24 24" className="w-3 h-3 fill-current">
@@ -103,7 +134,7 @@ export default function HomePage() {
             <div className="text-sm text-ink-sub mb-3">还没有记忆</div>
             <Link
               href="/create"
-              className="inline-flex items-center gap-1.5 rounded-full bg-brand-teal text-white px-4 py-2 text-sm font-medium shadow-glow-teal hover:bg-brand-teal-deep transition"
+              className="inline-flex items-center gap-1.5 rounded-full bg-coral-button text-white px-4 py-2 text-sm font-medium shadow-glow-coral hover:opacity-95 transition"
             >
               创建第一张
             </Link>

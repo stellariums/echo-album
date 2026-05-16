@@ -99,7 +99,7 @@ export function LastSavedPill({ saved }: { saved: LastSaved | null }) {
         <div className="flex-1 min-w-0">
           {isCompleted ? (
             <>
-              <div className="text-[11px] font-semibold text-brand-teal uppercase tracking-[0.15em]">
+              <div className="text-[11px] font-semibold text-brand-coral uppercase tracking-[0.15em]">
                 ✓ 已生成
               </div>
               <div className="text-sm font-medium text-ink-main truncate mt-0.5">
@@ -130,7 +130,7 @@ export function LastSavedPill({ saved }: { saved: LastSaved | null }) {
         {/* Arrow */}
         <svg
           viewBox="0 0 24 24"
-          className="w-5 h-5 fill-ink-mute group-hover:fill-brand-teal transition shrink-0"
+          className="w-5 h-5 fill-ink-mute group-hover:fill-brand-coral transition shrink-0"
         >
           <path d="M8.59 16.59 13.17 12 8.59 7.41 10 6l6 6-6 6z" />
         </svg>

@@ -14,36 +14,52 @@ export function isNative(): boolean {
   return Capacitor.isNativePlatform();
 }
 
+async function mediaResultToFile(result: MediaResult): Promise<File> {
+  const src = result.webPath ?? result.uri;
+  if (!src) {
+    throw new Error("相机未返回图片路径");
+  }
+  // On native, webPath looks like https://localhost/_capacitor_file_/... and
+  // the webview can fetch it directly.
+  const response = await fetch(src);
+  const blob = await response.blob();
+  const format = result.metadata?.format ?? "jpg";
+  const mime = blob.type || `image/${format === "jpg" ? "jpeg" : format}`;
+  return new File([blob], `photo.${format}`, { type: mime });
+}
+
+function isUserCancellation(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message.toLowerCase() : "";
+  return msg.includes("cancel") || msg.includes("user denied");
+}
+
 // Open the system camera, return the captured photo as a File. Resolves
 // to null if the user cancelled. Throws on permission denial / capture
 // failure.
 export async function captureFromCamera(): Promise<File | null> {
   let result: MediaResult;
   try {
-    result = await Camera.takePhoto({
-      quality: 90,
-      saveToGallery: false,
-    });
+    result = await Camera.takePhoto({ quality: 90, saveToGallery: false });
   } catch (err) {
-    const msg = err instanceof Error ? err.message.toLowerCase() : "";
-    if (msg.includes("cancel") || msg.includes("user denied")) return null;
+    if (isUserCancellation(err)) return null;
     throw err;
   }
+  return mediaResultToFile(result);
+}
 
-  const src = result.webPath ?? result.uri;
-  if (!src) {
-    throw new Error("相机未返回图片路径");
+// Open the gallery picker, return the chosen photo as a File. Resolves to
+// null if the user cancelled.
+export async function pickFromGallery(): Promise<File | null> {
+  try {
+    const { results } = await Camera.chooseFromGallery({
+      allowMultipleSelection: false,
+    });
+    if (results.length === 0) return null;
+    return await mediaResultToFile(results[0]);
+  } catch (err) {
+    if (isUserCancellation(err)) return null;
+    throw err;
   }
-
-  // On native, webPath looks like https://localhost/_capacitor_file_/... and
-  // the webview can fetch it directly. On web, takePhoto returns a base64
-  // thumbnail under `thumbnail` — but we don't use the web path of this
-  // helper at all (the page-level web fallback handles browser uploads).
-  const response = await fetch(src);
-  const blob = await response.blob();
-  const format = result.metadata?.format ?? "jpg";
-  const mime = blob.type || `image/${format === "jpg" ? "jpeg" : format}`;
-  return new File([blob], `photo.${format}`, { type: mime });
 }
 
 export async function ensureMicPermission(): Promise<boolean> {

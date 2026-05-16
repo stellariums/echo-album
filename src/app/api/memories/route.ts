@@ -48,7 +48,10 @@ function extFromMime(mime: string, fallback: string): string {
     "audio/wav": "wav",
     "audio/x-wav": "wav",
     "audio/x-m4a": "m4a",
-    "audio/aac": "aac",
+    // AAC payloads from Capacitor / Android voice-recorder are typically
+    // MP4-wrapped; Whisper rejects ".aac" but accepts ".m4a", so save them
+    // with the latter extension.
+    "audio/aac": "m4a",
   };
   return map[baseMimeType(mime)] ?? fallback;
 }
