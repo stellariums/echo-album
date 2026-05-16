@@ -1,0 +1,32 @@
+node_modules/
+.next/
+out/
+build/
+
+# Local env files (with real API keys)
+.env.local
+.env*.local
+
+# Database
+*.db
+*.db-journal
+prisma/*.db
+
+# User-uploaded assets (don't ship into git)
+public/uploads/*
+!public/uploads/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*

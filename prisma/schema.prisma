@@ -1,0 +1,46 @@
+// Echo Album — memory storage
+// SQLite stores tags/entities as JSON-stringified text (no native array type).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Memory {
+  id            String   @id @default(cuid())
+
+  // Raw assets (paths under /public/uploads, served as /uploads/...)
+  imageUrl      String
+  audioUrl      String?
+
+  // User-provided context
+  createdAt     DateTime @default(now())
+  locationText  String?
+  userNote      String?
+
+  // Extracted by AI pipeline
+  speechText    String?  // ASR result
+  ocrText       String?  // OCR (from vision model)
+  visionCaption String?  // Image description (from vision model)
+
+  // Generated memory card (LLM output)
+  title         String?
+  summary       String?
+  tags          String?  // JSON-stringified string[]
+  entities      String?  // JSON-stringified Record<string, string[]>
+  searchText    String?  // Concatenated text for keyword recall
+
+  // Pipeline status
+  status        String   @default("pending")
+  // pending | processing | completed | partial | failed
+  errorMessage  String?
+
+  updatedAt     DateTime @updatedAt
+
+  @@index([createdAt])
+  @@index([status])
+}
