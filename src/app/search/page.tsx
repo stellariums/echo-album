@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { AudioPlayer } from "@/components/AudioPlayer";
 
 interface SearchResult {
   id: string;
@@ -28,10 +29,10 @@ interface SearchResponse {
 }
 
 const EXAMPLE_QUERIES = [
-  "我上次说很好吃的甜品是哪张？",
-  "客户 Wi-Fi 密码截图在哪？",
-  "上周在咖啡店拍了什么？",
-  "那张写实验数据的截图",
+  "我上次说很好吃的甜品",
+  "客户 Wi-Fi 密码截图",
+  "上周拍的票据",
+  "适合写东西的咖啡店",
 ];
 
 export default function SearchPage() {
@@ -72,40 +73,51 @@ export default function SearchPage() {
   }
 
   return (
-    <div className="space-y-5 py-4">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-bold">搜索记忆</h1>
-        <p className="text-sm text-stone-600">
-          用自然语言描述你要找的照片。
-        </p>
+    <div className="space-y-5 py-2">
+      <header className="space-y-2 pt-2">
+        <div className="text-xs font-semibold text-brand-teal uppercase tracking-[0.2em]">
+          Search
+        </div>
+        <h1 className="text-2xl font-bold text-ink-main tracking-tight">
+          找回那张记忆
+        </h1>
       </header>
 
-      <form onSubmit={handleSubmit} className="flex gap-2">
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="例：我上次说很好吃的甜品？"
-          className="flex-1 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-stone-400"
-          disabled={submitting}
-        />
-        <button
-          type="submit"
-          disabled={submitting || !query.trim()}
-          className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition ${
-            submitting || !query.trim()
-              ? "bg-stone-300 cursor-not-allowed"
-              : "bg-stone-900 hover:bg-stone-700"
-          }`}
-        >
-          {submitting ? "搜索中…" : "搜索"}
-        </button>
+      {/* Pill search bar */}
+      <form onSubmit={handleSubmit}>
+        <div className="rounded-full bg-white h-14 flex items-center px-5 gap-3 shadow-soft-sm focus-within:shadow-soft transition">
+          <svg viewBox="0 0 24 24" className="w-5 h-5 fill-ink-sub shrink-0">
+            <path d="M15.5 14h-.8l-.27-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.6 4.23-1.57l.27.28v.79L19 20.49 20.49 19l-4.99-5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z" />
+          </svg>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="例如：我上次说很好吃的甜品？"
+            disabled={submitting}
+            className="flex-1 bg-transparent border-0 outline-none text-[15px] text-ink-main placeholder:text-ink-mute font-medium"
+          />
+          <button
+            type="submit"
+            disabled={submitting || !query.trim()}
+            aria-label="搜索"
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition shrink-0 ${
+              submitting || !query.trim()
+                ? "bg-paper-edge text-ink-mute cursor-not-allowed"
+                : "bg-brand-teal text-white shadow-glow-teal hover:bg-brand-teal-deep"
+            }`}
+          >
+            <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
+              <path d="M19 8l-1.5 3.5L14 13l3.5 1.5L19 18l1.5-3.5L24 13l-3.5-1.5L19 8zm-8 1.5L8.5 2 6 9.5 2 12l4 2.5L8.5 22l2.5-7.5L15 12l-4-2.5z" />
+            </svg>
+          </button>
+        </div>
       </form>
 
-      {/* Example queries shown when no response yet */}
+      {/* Example queries when nothing searched yet */}
       {!response && !submitting && !error && (
-        <div className="space-y-2">
-          <div className="text-xs font-semibold text-stone-500 uppercase tracking-wider">
+        <div className="space-y-2 pt-1">
+          <div className="text-xs font-semibold text-ink-mute uppercase tracking-[0.2em] px-1">
             试试这样问
           </div>
           <div className="flex flex-wrap gap-2">
@@ -114,7 +126,7 @@ export default function SearchPage() {
                 key={q}
                 type="button"
                 onClick={() => void runSearch(q)}
-                className="text-xs rounded-full border border-stone-300 bg-white px-3 py-1 text-stone-700 hover:border-stone-500 hover:bg-stone-50"
+                className="text-sm rounded-full bg-white border border-paper-edge px-4 py-2 text-ink-sub hover:border-brand-teal hover:text-brand-teal transition"
               >
                 {q}
               </button>
@@ -124,16 +136,16 @@ export default function SearchPage() {
       )}
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <div className="rounded-3xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           {error}
         </div>
       )}
 
       {submitting && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 flex items-center gap-3">
+        <div className="rounded-3xl glass p-4 text-sm text-brand-teal flex items-center gap-3 shadow-soft-sm">
           <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-teal opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-teal"></span>
           </span>
           <span>AI 正在改写问题、查找候选、重排…</span>
         </div>
@@ -153,45 +165,49 @@ function SearchResults({
 }) {
   const { answer, confidence, tier, results, suggestions } = response;
 
-  const tierStyle = {
-    high: {
-      bg: "bg-emerald-50 border-emerald-200 text-emerald-900",
-      label: "找到了",
-    },
-    medium: {
-      bg: "bg-amber-50 border-amber-200 text-amber-900",
-      label: "可能相关",
-    },
-    low: {
-      bg: "bg-stone-50 border-stone-200 text-stone-800",
-      label: "不太确定",
-    },
-    empty: {
-      bg: "bg-stone-50 border-stone-200 text-stone-700",
-      label: "没找到",
-    },
-  }[tier];
+  const tierMap = {
+    high: { label: "找到了", chipBg: "bg-brand-teal", textColor: "text-brand-teal" },
+    medium: { label: "可能相关", chipBg: "bg-brand-orange", textColor: "text-brand-orange" },
+    low: { label: "不太确定", chipBg: "bg-ink-mute", textColor: "text-ink-mute" },
+    empty: { label: "没找到", chipBg: "bg-ink-mute", textColor: "text-ink-mute" },
+  };
+  const tierStyle = tierMap[tier];
 
   return (
     <div className="space-y-4">
-      <div className={`rounded-lg border p-3 text-sm ${tierStyle.bg}`}>
-        <div className="text-xs font-semibold uppercase tracking-wider mb-1">
-          {tierStyle.label} · 置信度 {Math.round(confidence * 100)}%
+      {/* Answer banner */}
+      <div className="rounded-3xl bg-white p-5 shadow-soft-sm">
+        <div className="flex items-center gap-2 mb-2">
+          <span
+            className={`text-[11px] font-semibold tracking-wider uppercase text-white px-2 py-0.5 rounded-full ${tierStyle.chipBg}`}
+          >
+            {tierStyle.label}
+          </span>
+          <span className="text-xs text-ink-mute">
+            置信度 {Math.round(confidence * 100)}%
+          </span>
+          <span className="text-xs text-ink-mute ml-auto">
+            找到 <span className="text-ink-main font-semibold">{results.length}</span> 张
+          </span>
         </div>
-        <div>{answer}</div>
+        <div className="text-[15px] text-ink-main leading-relaxed">{answer}</div>
       </div>
 
       {results.length > 0 && (
-        <div className="space-y-3">
-          {results.map((r) => (
-            <ResultCard key={r.id} result={r} />
-          ))}
+        <div className="space-y-4">
+          {results.map((r, idx) =>
+            r.isBestMatch ? (
+              <FeaturedResult key={r.id} result={r} />
+            ) : (
+              <CompactResult key={r.id} result={r} rank={idx + 1} />
+            )
+          )}
         </div>
       )}
 
       {tier === "low" && suggestions && suggestions.length > 0 && (
-        <div className="space-y-2">
-          <div className="text-xs font-semibold text-stone-500 uppercase tracking-wider">
+        <div className="space-y-2 pt-2">
+          <div className="text-xs font-semibold text-ink-mute uppercase tracking-[0.2em] px-1">
             换个词试试
           </div>
           <div className="flex flex-wrap gap-2">
@@ -200,7 +216,7 @@ function SearchResults({
                 key={s}
                 type="button"
                 onClick={() => onSuggestion(s)}
-                className="text-xs rounded-full border border-stone-300 bg-white px-3 py-1 text-stone-700 hover:border-stone-500"
+                className="text-sm rounded-full bg-white border border-paper-edge px-4 py-1.5 text-ink-sub hover:border-brand-teal hover:text-brand-teal transition"
               >
                 {s}
               </button>
@@ -212,55 +228,107 @@ function SearchResults({
   );
 }
 
-function ResultCard({ result }: { result: SearchResult }) {
+function FeaturedResult({ result }: { result: SearchResult }) {
   return (
-    <Link
-      href={`/memory/${result.id}`}
-      className={`block rounded-xl overflow-hidden bg-white transition ${
-        result.isBestMatch
-          ? "border-2 border-emerald-400 shadow-sm"
-          : "border border-stone-200 hover:border-stone-400"
-      }`}
-    >
-      <div className="flex">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={result.imageUrl}
-          alt={result.title ?? ""}
-          className="w-28 h-28 object-cover bg-stone-100 shrink-0"
-        />
-        <div className="p-3 flex-1 min-w-0">
-          <div className="flex items-baseline gap-2">
-            <div className="font-medium text-sm truncate">
-              {result.title ?? "未命名记忆"}
+    <Link href={`/memory/${result.id}`} className="block group">
+      <div className="relative">
+        {/* Big photo card with white "polaroid" padding */}
+        <div className="rounded-4xl bg-white p-1.5 shadow-soft">
+          <div className="relative aspect-[4/5] rounded-[24px] overflow-hidden bg-paper-bg">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={result.imageUrl}
+              alt={result.title ?? ""}
+              className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-300"
+            />
+            <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-brand-teal text-white text-[11px] font-semibold shadow-glow-teal">
+              ✦ 最匹配
             </div>
-            {result.isBestMatch && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 shrink-0">
-                最匹配
-              </span>
-            )}
           </div>
-          <div className="text-xs text-stone-500 mt-0.5">
-            {new Date(result.createdAt).toLocaleString("zh-CN")}
+        </div>
+
+        {/* Floating details card — overlapping the bottom of the photo */}
+        <div className="-mt-12 mx-3 sm:mx-4 rounded-4xl glass p-5 shadow-soft relative">
+          <div className="flex items-baseline justify-between gap-2 mb-1">
+            <h3 className="text-lg font-semibold text-ink-main truncate">
+              {result.title ?? "未命名记忆"}
+            </h3>
+          </div>
+          <div className="text-xs text-ink-mute mb-3">
+            {new Date(result.createdAt).toLocaleDateString("zh-CN")}
             {result.locationText ? ` · ${result.locationText}` : ""}
           </div>
           {result.summary && (
-            <div className="text-xs text-stone-600 mt-1.5 line-clamp-2">
+            <p className="text-sm text-ink-sub leading-relaxed mb-3">
               {result.summary}
-            </div>
+            </p>
           )}
           {result.reason && (
-            <div className="text-xs text-emerald-700 mt-1.5 leading-snug">
+            <div className="text-xs text-brand-teal leading-snug mb-3 bg-brand-teal/8 rounded-2xl px-3 py-2">
               <span className="font-semibold">匹配原因：</span>
               {result.reason}
             </div>
           )}
+          {result.audioUrl && (
+            <div onClick={(e) => e.preventDefault()}>
+              <AudioPlayer src={result.audioUrl} seed={result.id} />
+            </div>
+          )}
           {result.matchedKeywords.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1.5">
+            <div className="flex flex-wrap gap-1.5 mt-3">
               {result.matchedKeywords.slice(0, 6).map((k) => (
                 <span
                   key={k}
-                  className="text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-700"
+                  className="text-[11px] px-2 py-0.5 rounded-full bg-paper-bg text-ink-sub"
+                >
+                  {k}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function CompactResult({ result, rank }: { result: SearchResult; rank: number }) {
+  return (
+    <Link
+      href={`/memory/${result.id}`}
+      className="block rounded-3xl bg-white p-3 shadow-soft-sm hover:shadow-soft transition"
+    >
+      <div className="flex gap-3">
+        <div className="relative w-24 h-24 shrink-0 rounded-2xl overflow-hidden bg-paper-bg">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={result.imageUrl}
+            alt={result.title ?? ""}
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute top-1 left-1 w-5 h-5 rounded-full bg-white/95 flex items-center justify-center text-[10px] font-bold text-ink-sub">
+            {rank}
+          </div>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium text-ink-main truncate">
+            {result.title ?? "未命名记忆"}
+          </div>
+          <div className="text-[11px] text-ink-mute mt-0.5">
+            {new Date(result.createdAt).toLocaleDateString("zh-CN")}
+            {result.locationText ? ` · ${result.locationText}` : ""}
+          </div>
+          {result.summary && (
+            <div className="text-xs text-ink-sub mt-1.5 line-clamp-2 leading-relaxed">
+              {result.summary}
+            </div>
+          )}
+          {result.matchedKeywords.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {result.matchedKeywords.slice(0, 4).map((k) => (
+                <span
+                  key={k}
+                  className="text-[10px] px-1.5 py-0.5 rounded-full bg-paper-bg text-ink-sub"
                 >
                   {k}
                 </span>

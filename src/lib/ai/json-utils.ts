@@ -43,3 +43,10 @@ export function extractJson<T = unknown>(text: string): T {
     "Could not extract JSON from model response: " + trimmed.slice(0, 300)
   );
 }
+
+export function isJsonExtractionError(err: unknown): boolean {
+  return (
+    err instanceof Error &&
+    err.message.startsWith("Could not extract JSON from model response:")
+  );
+}

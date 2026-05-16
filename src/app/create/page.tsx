@@ -3,10 +3,31 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { compressImage } from "@/lib/image";
+import { AudioPlayer } from "@/components/AudioPlayer";
 
 const MAX_RECORD_SECONDS = 60;
 const MIN_RECORD_MS = 800;
 const MIN_AUDIO_BYTES = 1024;
+
+function getRecordingErrorMessage(err: unknown): string {
+  if (!(err instanceof DOMException)) {
+    return err instanceof Error ? err.message : "未知错误";
+  }
+
+  if (err.name === "NotAllowedError" || err.message.toLowerCase().includes("permission")) {
+    return "麦克风权限被拒绝。请在浏览器地址栏左侧允许麦克风，或改用系统 Chrome / Edge / Safari 打开本页面；也可以跳过录音，直接填写文字备注。";
+  }
+
+  if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+    return "没有检测到可用麦克风。请检查系统输入设备，或直接填写文字备注。";
+  }
+
+  if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+    return "麦克风正在被其他应用占用。请关闭占用麦克风的软件后重试，或直接填写文字备注。";
+  }
+
+  return err.message || err.name || "权限被拒绝";
+}
 
 export default function CreatePage() {
   const router = useRouter();
@@ -74,8 +95,16 @@ export default function CreatePage() {
   async function startRecording() {
     setError(null);
     setInfo(null);
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      setError("当前页面不是安全上下文，浏览器会禁止录音。请使用 http://localhost 或 HTTPS 地址访问。");
+      return;
+    }
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       setError("当前浏览器不支持录音，请改用 Chrome / Edge / Safari。");
+      return;
+    }
+    if (typeof MediaRecorder === "undefined") {
+      setError("当前浏览器不支持 MediaRecorder 录音，请改用 Chrome / Edge / Safari，或直接填写文字备注。");
       return;
     }
     try {
@@ -124,10 +153,7 @@ export default function CreatePage() {
         }
       }, 250);
     } catch (err) {
-      setError(
-        "无法访问麦克风：" +
-          (err instanceof Error ? err.message : "权限被拒绝")
-      );
+      setError("无法访问麦克风：" + getRecordingErrorMessage(err));
     }
   }
 
@@ -196,46 +222,53 @@ export default function CreatePage() {
   const canSubmit = !!imageFile && !submitting && !imageProcessing;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5 py-4">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-bold">创建记忆</h1>
-        <p className="text-sm text-stone-600">
+    <form onSubmit={handleSubmit} className="space-y-5 py-2">
+      <header className="space-y-2 pt-2">
+        <div className="text-xs font-semibold text-brand-teal uppercase tracking-[0.2em]">
+          New Memory
+        </div>
+        <h1 className="text-2xl font-bold text-ink-main tracking-tight">
+          创建记忆
+        </h1>
+        <p className="text-sm text-ink-sub">
           上传图片 → 录一句话或写一句备注 → 保存。
         </p>
       </header>
 
       {/* Image */}
       <section className="space-y-2">
-        <label className="block text-sm font-medium text-stone-700">
-          图片 <span className="text-red-500">*</span>
+        <label className="block text-xs font-semibold text-ink-mute uppercase tracking-[0.15em] px-1">
+          图片 <span className="text-brand-orange">*</span>
         </label>
         {imagePreview ? (
-          <div className="relative rounded-xl overflow-hidden border border-stone-200 bg-white">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={imagePreview}
-              alt="preview"
-              className="w-full max-h-[50vh] object-contain bg-stone-100"
-            />
+          <div className="relative rounded-4xl bg-white p-1.5 shadow-soft-sm">
+            <div className="rounded-[24px] overflow-hidden bg-paper-bg">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imagePreview}
+                alt="preview"
+                className="w-full max-h-[50vh] object-contain bg-paper-bg"
+              />
+            </div>
             <button
               type="button"
               onClick={resetImage}
-              className="absolute top-2 right-2 px-2.5 py-1 rounded-md bg-black/60 text-white text-xs hover:bg-black/80"
+              className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-black/55 backdrop-blur text-white text-xs hover:bg-black/75 transition"
             >
               重选
             </button>
             {imageFile && (
-              <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/60 text-white text-xs">
+              <div className="absolute bottom-3 left-3 px-2.5 py-1 rounded-full bg-black/55 backdrop-blur text-white text-[11px] font-medium">
                 {(imageFile.size / 1024).toFixed(0)} KB
               </div>
             )}
           </div>
         ) : (
           <label
-            className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed bg-white p-10 text-center cursor-pointer transition ${
+            className={`flex flex-col items-center justify-center rounded-3xl bg-white p-10 text-center cursor-pointer shadow-soft-sm transition ${
               imageProcessing
-                ? "border-stone-300 text-stone-400"
-                : "border-stone-300 text-stone-500 hover:border-stone-500 hover:text-stone-700"
+                ? "text-ink-mute"
+                : "text-ink-sub hover:shadow-soft"
             }`}
           >
             <input
@@ -247,11 +280,15 @@ export default function CreatePage() {
               disabled={imageProcessing}
               className="hidden"
             />
-            <div className="text-3xl mb-2">+</div>
-            <div className="text-sm">
+            <div className="w-12 h-12 rounded-2xl bg-brand-teal/10 flex items-center justify-center mb-3">
+              <svg viewBox="0 0 24 24" className="w-6 h-6 fill-brand-teal">
+                <path d="M4 5h3l2-2h6l2 2h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zm8 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10z" />
+              </svg>
+            </div>
+            <div className="text-sm font-medium text-ink-main">
               {imageProcessing ? "正在压缩…" : "点击选择图片 / 拍照"}
             </div>
-            <div className="text-xs text-stone-400 mt-1">
+            <div className="text-xs text-ink-mute mt-1">
               支持 jpg / png / webp，自动压缩到 ≤1280px
             </div>
           </label>
@@ -260,17 +297,16 @@ export default function CreatePage() {
 
       {/* Audio */}
       <section className="space-y-2">
-        <label className="block text-sm font-medium text-stone-700">
+        <label className="block text-xs font-semibold text-ink-mute uppercase tracking-[0.15em] px-1">
           录音（可选）
         </label>
         {audioPreview ? (
-          <div className="rounded-xl border border-stone-200 bg-white p-3 space-y-2">
-            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-            <audio controls src={audioPreview} className="w-full" />
+          <div className="rounded-3xl bg-white p-4 shadow-soft-sm space-y-3">
+            <AudioPlayer src={audioPreview} seed={audioPreview} />
             <button
               type="button"
               onClick={resetAudio}
-              className="text-xs text-stone-500 hover:text-stone-800 underline"
+              className="text-xs text-ink-mute hover:text-brand-teal transition"
             >
               重录
             </button>
@@ -279,13 +315,13 @@ export default function CreatePage() {
           <button
             type="button"
             onClick={() => stopRecording(false)}
-            className="w-full flex items-center justify-center gap-3 rounded-xl border border-red-300 bg-red-50 p-4 hover:bg-red-100 transition"
+            className="w-full flex items-center justify-center gap-3 rounded-3xl bg-red-50 border border-red-200 p-4 hover:bg-red-100 transition"
           >
             <span className="relative flex h-3 w-3">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
             </span>
-            <span className="text-red-700 font-medium">
+            <span className="text-red-700 font-medium text-sm">
               正在录音{" "}
               <span
                 className={
@@ -305,10 +341,14 @@ export default function CreatePage() {
           <button
             type="button"
             onClick={startRecording}
-            className="w-full flex items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white p-4 text-stone-600 hover:border-stone-500 hover:text-stone-800 transition"
+            className="w-full flex items-center justify-center gap-2 rounded-3xl bg-white p-4 text-ink-sub shadow-soft-sm hover:shadow-soft hover:text-brand-teal transition"
           >
-            <span>🎙</span>
-            <span className="text-sm">开始录音（最长 {MAX_RECORD_SECONDS} 秒）</span>
+            <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
+              <path d="M12 2a5 5 0 0 0-5 5v6a5 5 0 0 0 10 0V7a5 5 0 0 0-5-5zM5 11a1 1 0 0 1 2 0 5 5 0 0 0 10 0 1 1 0 0 1 2 0 7 7 0 0 1-6 6.93V21a1 1 0 0 1-2 0v-3.07A7 7 0 0 1 5 11z" />
+            </svg>
+            <span className="text-sm font-medium">
+              开始录音（最长 {MAX_RECORD_SECONDS} 秒）
+            </span>
           </button>
         )}
       </section>
@@ -317,7 +357,7 @@ export default function CreatePage() {
       <section className="space-y-2">
         <label
           htmlFor="userNote"
-          className="block text-sm font-medium text-stone-700"
+          className="block text-xs font-semibold text-ink-mute uppercase tracking-[0.15em] px-1"
         >
           备注（可选）
         </label>
@@ -327,7 +367,7 @@ export default function CreatePage() {
           onChange={(e) => setUserNote(e.target.value)}
           placeholder="给这张照片留一句话…"
           rows={3}
-          className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-stone-400"
+          className="w-full rounded-3xl bg-white px-4 py-3 text-sm text-ink-main placeholder:text-ink-mute shadow-soft-sm focus:outline-none focus:shadow-soft border-0 resize-none"
         />
       </section>
 
@@ -335,7 +375,7 @@ export default function CreatePage() {
       <section className="space-y-2">
         <label
           htmlFor="locationText"
-          className="block text-sm font-medium text-stone-700"
+          className="block text-xs font-semibold text-ink-mute uppercase tracking-[0.15em] px-1"
         >
           地点（可选）
         </label>
@@ -345,18 +385,18 @@ export default function CreatePage() {
           value={locationText}
           onChange={(e) => setLocationText(e.target.value)}
           placeholder="例：合肥某商场 / 实验室 / 咖啡店…"
-          className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-stone-400"
+          className="w-full rounded-full bg-white px-5 py-3 text-sm text-ink-main placeholder:text-ink-mute shadow-soft-sm focus:outline-none focus:shadow-soft border-0"
         />
       </section>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <div className="rounded-3xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           {error}
         </div>
       )}
 
       {info && !error && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+        <div className="rounded-3xl glass p-4 text-sm text-brand-teal shadow-soft-sm">
           {info}
         </div>
       )}
@@ -364,17 +404,17 @@ export default function CreatePage() {
       <button
         type="submit"
         disabled={!canSubmit}
-        className={`w-full rounded-xl px-4 py-3 font-medium text-white transition ${
+        className={`w-full rounded-full px-4 py-3.5 font-semibold text-white transition ${
           canSubmit
-            ? "bg-stone-900 hover:bg-stone-700"
-            : "bg-stone-300 cursor-not-allowed"
+            ? "bg-brand-teal hover:bg-brand-teal-deep shadow-glow-teal"
+            : "bg-paper-edge text-ink-mute cursor-not-allowed"
         }`}
       >
         {submitting ? "保存中…" : "保存记忆"}
       </button>
 
-      <p className="text-xs text-stone-400 text-center">
-        AI 生成标题、摘要、标签将在下一步接入后自动完成。
+      <p className="text-xs text-ink-mute text-center">
+        AI 生成标题、摘要、标签将在保存后自动完成。
       </p>
     </form>
   );

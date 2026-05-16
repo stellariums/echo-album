@@ -4,7 +4,7 @@
 //   3. rerankCandidates  — pick the best match + explain why
 
 import { getClient, modelId } from "./client";
-import { extractJson } from "./json-utils";
+import { extractJson, isJsonExtractionError } from "./json-utils";
 
 // ---------------- Memory Card ----------------
 
@@ -47,7 +47,7 @@ function buildMemoryCardPrompt(input: MemoryCardInput): string {
 {
   "title": "8 字以内的简短标题，要能让用户一眼想起这张照片",
   "summary": "1-2 句话的中文摘要，重点是用户当时的体验/感受/情境",
-  "tags": ["6-10 个中文标签，覆盖物体、场景、情绪、意图、同义词"],
+  "tags": ["6-8 个中文标签，覆盖物体、场景、情绪、意图、同义词"],
   "entities": {
     "food": [],
     "place": [],
@@ -55,14 +55,51 @@ function buildMemoryCardPrompt(input: MemoryCardInput): string {
     "emotion": [],
     "action_intent": []
   },
-  "search_text": "一段空格分隔的中文关键词，必须主动扩展同义词和情绪词"
+  "search_text": "15-30 个空格分隔的中文关键词，必须主动扩展同义词和情绪词"
 }
 
 要求：
 - 只返回 JSON，不要任何额外文字、不要代码块标记
 - entities 中没有内容的子字段返回空数组 []
+- entities 每个子字段最多 6 项
 - title 控制在 8 个汉字以内，简洁有画面感
-- search_text 至少 15 个关键词，要覆盖：物体、场景、情绪、用户原话精炼、同义词、可能的搜索词`;
+- search_text 要覆盖：物体、场景、情绪、用户原话精炼、同义词、可能的搜索词
+- 不要输出 Markdown，不要解释字段含义`;
+}
+
+function buildCompactMemoryCardPrompt(input: MemoryCardInput): string {
+  return `上一次输出不是合法 JSON。请基于以下信息重新生成一张简短记忆卡，只返回可被 JSON.parse 解析的 JSON 对象。
+
+输入：
+${JSON.stringify(
+  {
+    vision_caption: input.visionCaption,
+    ocr_text: input.ocrText.slice(0, 800),
+    speech_text: input.speechText,
+    user_note: input.userNote,
+    created_at: input.createdAt,
+    location_text: input.locationText,
+  },
+  null,
+  2
+)}
+
+输出格式：
+{
+  "title": "8字以内标题",
+  "summary": "1句话摘要",
+  "tags": ["4-8个中文标签"],
+  "entities": {
+    "food": [],
+    "place": [],
+    "person": [],
+    "emotion": [],
+    "action_intent": []
+  },
+  "search_text": "15-25个空格分隔关键词"
+}
+
+只返回 JSON，不要 Markdown，不要额外解释。`;
 }
 
 interface RawMemoryCard {
@@ -76,21 +113,31 @@ interface RawMemoryCard {
 export async function generateMemoryCard(
   input: MemoryCardInput
 ): Promise<MemoryCard> {
-  const client = getClient();
-  const res = await client.chat.completions.create({
-    model: modelId("LLM"),
-    messages: [
-      { role: "system", content: MEMORY_CARD_SYSTEM },
-      { role: "user", content: buildMemoryCardPrompt(input) },
-    ],
-    temperature: 0.3,
-    max_tokens: 1200,
-    response_format: { type: "json_object" },
-  });
+  async function requestCard(prompt: string, maxTokens: number): Promise<RawMemoryCard> {
+    const client = getClient();
+    const res = await client.chat.completions.create({
+      model: modelId("LLM"),
+      messages: [
+        { role: "system", content: MEMORY_CARD_SYSTEM },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.3,
+      max_tokens: maxTokens,
+      response_format: { type: "json_object" },
+    });
 
-  const text = res.choices[0]?.message?.content ?? "";
-  if (!text.trim()) throw new Error("LLM returned empty response");
-  const parsed = extractJson<RawMemoryCard>(text);
+    const text = res.choices[0]?.message?.content ?? "";
+    if (!text.trim()) throw new Error("LLM returned empty response");
+    return extractJson<RawMemoryCard>(text);
+  }
+
+  let parsed: RawMemoryCard;
+  try {
+    parsed = await requestCard(buildMemoryCardPrompt(input), 2200);
+  } catch (err) {
+    if (!isJsonExtractionError(err)) throw err;
+    parsed = await requestCard(buildCompactMemoryCardPrompt(input), 1600);
+  }
 
   return {
     title: parsed.title?.trim() ?? "未命名记忆",
@@ -158,7 +205,7 @@ export async function planQuery(userQuery: string): Promise<QueryPlan> {
       { role: "user", content: buildQueryPlanPrompt(userQuery, new Date().toISOString()) },
     ],
     temperature: 0.2,
-    max_tokens: 600,
+    max_tokens: 1000,
     response_format: { type: "json_object" },
   });
 
@@ -257,7 +304,7 @@ export async function rerankCandidates(
       { role: "user", content: buildRerankPrompt(userQuery, candidates) },
     ],
     temperature: 0.2,
-    max_tokens: 600,
+    max_tokens: 1000,
     response_format: { type: "json_object" },
   });
 

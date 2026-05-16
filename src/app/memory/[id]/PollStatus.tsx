@@ -56,10 +56,10 @@ export function PollStatus({ memoryId, initialStatus }: Props) {
 
   if (ACTIVE_STATUSES.has(status)) {
     return (
-      <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 flex items-center gap-3">
+      <div className="rounded-3xl glass p-4 text-sm text-brand-teal flex items-center gap-3 shadow-soft-sm">
         <span className="relative flex h-2.5 w-2.5">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-teal opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-teal"></span>
         </span>
         <span>AI 正在生成记忆卡，通常需要 5-15 秒…</span>
       </div>
@@ -72,7 +72,7 @@ export function PollStatus({ memoryId, initialStatus }: Props) {
         type="button"
         onClick={retry}
         disabled={retrying}
-        className="text-sm rounded-md border border-stone-300 bg-white px-3 py-1.5 hover:border-stone-500 hover:bg-stone-50 disabled:opacity-50"
+        className="text-sm rounded-full border border-paper-edge bg-white px-4 py-2 text-ink-sub hover:border-brand-teal hover:text-brand-teal transition disabled:opacity-50"
       >
         {retrying ? "重新生成中…" : "重新生成记忆卡"}
       </button>

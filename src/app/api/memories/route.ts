@@ -31,6 +31,10 @@ const ALLOWED_AUDIO_MIME = new Set([
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB
 const MAX_AUDIO_BYTES = 5 * 1024 * 1024; // 5MB
 
+function baseMimeType(mime: string): string {
+  return mime.split(";")[0]?.trim().toLowerCase() ?? "";
+}
+
 function extFromMime(mime: string, fallback: string): string {
   const map: Record<string, string> = {
     "image/jpeg": "jpg",
@@ -46,7 +50,7 @@ function extFromMime(mime: string, fallback: string): string {
     "audio/x-m4a": "m4a",
     "audio/aac": "aac",
   };
-  return map[mime] ?? fallback;
+  return map[baseMimeType(mime)] ?? fallback;
 }
 
 async function saveFile(
@@ -86,7 +90,8 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  if (!ALLOWED_IMAGE_MIME.has(image.type)) {
+  const imageMime = baseMimeType(image.type);
+  if (!ALLOWED_IMAGE_MIME.has(imageMime)) {
     return NextResponse.json(
       { error: `Unsupported image type: ${image.type}` },
       { status: 400 }
@@ -101,7 +106,8 @@ export async function POST(req: NextRequest) {
 
   let audioUrl: string | null = null;
   if (audio instanceof File && audio.size > 0) {
-    if (!ALLOWED_AUDIO_MIME.has(audio.type)) {
+    const audioMime = baseMimeType(audio.type);
+    if (!ALLOWED_AUDIO_MIME.has(audioMime)) {
       return NextResponse.json(
         { error: `Unsupported audio type: ${audio.type}` },
         { status: 400 }
