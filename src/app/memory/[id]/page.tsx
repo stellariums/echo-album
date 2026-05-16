@@ -107,10 +107,10 @@ export default async function MemoryDetailPage({
         )}
       </div>
 
-      {memory.status !== "completed" && (
+      {(memory.status === "failed" || memory.status === "partial") && (
         <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           <span className="font-semibold">状态：</span>
-          {memory.status}
+          {memory.status === "partial" ? "部分完成" : "失败"}
           {memory.errorMessage ? ` — ${memory.errorMessage}` : ""}
         </div>
       )}

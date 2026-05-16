@@ -8,7 +8,19 @@ interface Props {
   initialStatus: string;
 }
 
-const ACTIVE_STATUSES = new Set(["pending", "processing"]);
+const ACTIVE_STATUSES = new Set(["pending", "processing", "analyzing", "composing"]);
+
+interface StageDef {
+  label: string;
+  progress: number; // 0..100
+}
+
+const STAGES: Record<string, StageDef> = {
+  pending:    { label: "排队中…",          progress: 5 },
+  processing: { label: "AI 正在分析…",      progress: 20 },
+  analyzing:  { label: "正在识别图片内容…",  progress: 35 },
+  composing:  { label: "正在整理记忆卡…",    progress: 75 },
+};
 
 export function PollStatus({ memoryId, initialStatus }: Props) {
   const router = useRouter();
@@ -37,7 +49,7 @@ export function PollStatus({ memoryId, initialStatus }: Props) {
       }
     }
 
-    intervalRef.current = setInterval(tick, 2000);
+    intervalRef.current = setInterval(tick, 1000);
     void tick();
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -48,20 +60,29 @@ export function PollStatus({ memoryId, initialStatus }: Props) {
     setRetrying(true);
     try {
       await fetch(`/api/memories/${memoryId}/process`, { method: "POST" });
-      setStatus("processing");
+      setStatus("analyzing");
     } finally {
       setRetrying(false);
     }
   }
 
   if (ACTIVE_STATUSES.has(status)) {
+    const stage = STAGES[status] ?? STAGES.processing;
     return (
-      <div className="rounded-3xl glass p-4 text-sm text-brand-teal flex items-center gap-3 shadow-soft-sm">
-        <span className="relative flex h-2.5 w-2.5">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-teal opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-teal"></span>
-        </span>
-        <span>AI 正在生成记忆卡，通常需要 5-15 秒…</span>
+      <div className="rounded-3xl glass p-4 shadow-soft-sm space-y-2.5">
+        <div className="flex items-center gap-3 text-sm text-brand-teal">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-teal opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-teal"></span>
+          </span>
+          <span className="font-medium">{stage.label}</span>
+        </div>
+        <div className="h-1.5 rounded-full bg-paper-bg overflow-hidden">
+          <div
+            className="h-full bg-brand-teal transition-all duration-500 ease-out"
+            style={{ width: `${stage.progress}%` }}
+          />
+        </div>
       </div>
     );
   }

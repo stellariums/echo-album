@@ -45,6 +45,9 @@ export default function CreatePage() {
   const [locationText, setLocationText] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
+  const [submitStage, setSubmitStage] = useState<
+    "idle" | "uploading" | "creating"
+  >("idle");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
@@ -201,6 +204,7 @@ export default function CreatePage() {
       formData.append("locationText", locationText.trim());
 
     try {
+      setSubmitStage("uploading");
       const res = await fetch("/api/memories", {
         method: "POST",
         body: formData,
@@ -209,6 +213,7 @@ export default function CreatePage() {
         const data = await res.json().catch(() => ({}) as { error?: string });
         throw new Error(data.error || `请求失败 (${res.status})`);
       }
+      setSubmitStage("creating");
       const { id } = (await res.json()) as { id: string };
       router.push(`/memory/${id}`);
     } catch (err) {
@@ -216,10 +221,18 @@ export default function CreatePage() {
         "保存失败：" + (err instanceof Error ? err.message : "未知错误")
       );
       setSubmitting(false);
+      setSubmitStage("idle");
     }
   }
 
   const canSubmit = !!imageFile && !submitting && !imageProcessing;
+
+  const submitLabel =
+    submitStage === "uploading"
+      ? "上传中…"
+      : submitStage === "creating"
+        ? "进入详情页…"
+        : "保存记忆";
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5 py-2">
@@ -410,7 +423,7 @@ export default function CreatePage() {
             : "bg-paper-edge text-ink-mute cursor-not-allowed"
         }`}
       >
-        {submitting ? "保存中…" : "保存记忆"}
+        {submitting ? submitLabel : "保存记忆"}
       </button>
 
       <p className="text-xs text-ink-mute text-center">

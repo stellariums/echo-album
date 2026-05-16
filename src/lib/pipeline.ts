@@ -1,8 +1,11 @@
 // Memory processing pipeline.
-//   1. Mark status='processing'
+//   1. Mark status='analyzing'
 //   2. Run vision + ASR in parallel
-//   3. Generate memory card via LLM
+//   3. Mark status='composing', generate memory card via LLM
 //   4. Save result, set status to completed/partial/failed
+//
+// Status timeline (seen by the polling client):
+//   pending → analyzing → composing → {completed|partial|failed}
 
 import path from "node:path";
 import { prisma } from "./db";
@@ -22,7 +25,7 @@ export async function processMemory(id: string): Promise<void> {
 
   await prisma.memory.update({
     where: { id },
-    data: { status: "processing", errorMessage: null },
+    data: { status: "analyzing", errorMessage: null },
   });
 
   const errors: string[] = [];
@@ -57,12 +60,24 @@ export async function processMemory(id: string): Promise<void> {
 
   await Promise.all(tasks);
 
-  // --- Step 2: memory card generation ---
-  // Try LLM even if vision/ASR partially failed — user note alone can be enough.
+  // Move into the composing phase so the UI can swap its progress text.
   // (Cast through `as` because TS doesn't track mutations of `vision` through the
   //  .then() closures above, narrowing it incorrectly to `never`.)
   const v = vision as VisionResult | null;
   const s = speechText as string | null;
+
+  await prisma.memory.update({
+    where: { id },
+    data: {
+      status: "composing",
+      visionCaption: v?.visionCaption ?? null,
+      ocrText: v?.ocrText ?? null,
+      speechText: s,
+    },
+  });
+
+  // --- Step 2: memory card generation ---
+  // Try LLM even if vision/ASR partially failed — user note alone can be enough.
   let card: Awaited<ReturnType<typeof generateMemoryCard>> | null = null;
   try {
     card = await generateMemoryCard({
@@ -90,9 +105,6 @@ export async function processMemory(id: string): Promise<void> {
   await prisma.memory.update({
     where: { id },
     data: {
-      visionCaption: v?.visionCaption ?? null,
-      ocrText: v?.ocrText ?? null,
-      speechText: s,
       title: card?.title ?? null,
       summary: card?.summary ?? null,
       tags: card ? JSON.stringify(card.tags) : null,

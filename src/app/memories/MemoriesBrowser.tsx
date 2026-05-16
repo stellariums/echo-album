@@ -241,7 +241,10 @@ function BrowseMode({
                       </svg>
                     </div>
                   )}
-                  {(m.status === "pending" || m.status === "processing") && (
+                  {(m.status === "pending" ||
+                    m.status === "processing" ||
+                    m.status === "analyzing" ||
+                    m.status === "composing") && (
                     <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-full bg-black/50 backdrop-blur text-[10px] text-white">
                       处理中
                     </div>

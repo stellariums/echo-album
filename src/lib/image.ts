@@ -11,7 +11,7 @@ export async function compressImage(
   file: File,
   options: CompressOptions = {}
 ): Promise<File> {
-  const { maxEdge = 1280, quality = 0.85 } = options;
+  const { maxEdge = 1024, quality = 0.78 } = options;
 
   // Skip compression for tiny images
   if (file.size < 200 * 1024) {
