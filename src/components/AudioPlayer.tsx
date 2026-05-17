@@ -84,13 +84,15 @@ export function AudioPlayer({ src, seed, className }: Props) {
   const display = duration > 0 ? formatTime(duration - currentTime) : "0:00";
 
   return (
-    <div className={`flex items-center ${className ?? ""}`}>
+    <div
+      className={`flex items-center bg-white rounded-full border border-paper-edge px-3 py-2 shadow-soft-sm ${className ?? ""}`}
+    >
       <audio ref={audioRef} src={src} preload="metadata" className="hidden" />
       <button
         type="button"
         onClick={toggle}
         aria-label={playing ? "暂停" : "播放"}
-        className="w-9 h-9 rounded-full bg-brand-teal flex items-center justify-center shadow-glow-teal hover:bg-brand-teal-deep transition shrink-0"
+        className="w-9 h-9 rounded-full bg-coral-button flex items-center justify-center shadow-glow-coral hover:opacity-90 transition shrink-0"
       >
         {playing ? (
           <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-white">
@@ -111,7 +113,7 @@ export function AudioPlayer({ src, seed, className }: Props) {
             <div
               key={i}
               className={`w-[2.5px] rounded-full transition-colors ${
-                active ? "bg-brand-orange" : "bg-brand-orange-light"
+                active ? "bg-brand-sunset" : "bg-paper-edge"
               }`}
               style={{ height: `${h}px` }}
             />
@@ -119,7 +121,7 @@ export function AudioPlayer({ src, seed, className }: Props) {
         })}
       </div>
 
-      <span className="text-xs text-ink-sub font-medium tabular-nums shrink-0">
+      <span className="text-xs text-ink-sub font-medium tabular-nums shrink-0 mr-1">
         {display}
       </span>
     </div>

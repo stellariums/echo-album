@@ -1,13 +1,27 @@
 // ASR: speech-to-text via Whisper (whisper-large-v3) through the OpenAI-compatible
-// /v1/audio/transcriptions endpoint. Supports webm/opus from browser MediaRecorder.
+// /v1/audio/transcriptions endpoint. Supports webm/opus from browser MediaRecorder
+// and m4a (MP4-wrapped AAC) from Capacitor's voice recorder.
 
-import fs from "node:fs";
+import { toFile } from "openai";
 import { getClient, modelId } from "./client";
 
-// Whisper's Chinese model is known to hallucinate boilerplate phrases on silence
-// or very low-volume audio. These are training-set artifacts (subtitled YouTube
-// videos, podcasts, etc.). When we detect a transcription that's *only* one of
-// these phrases, we treat it as if the user said nothing.
+// Whisper accepts only this list — both filename extension and content must
+// match. The Capacitor voice-recorder plugin is patched (see
+// patches/capacitor-voice-recorder.patch) to emit a real MP4 container so
+// .m4a is honest. Raw .aac (ADTS) was rejected by Whisper even when renamed.
+const WHISPER_EXTS = new Set([
+  "flac",
+  "mp3",
+  "mp4",
+  "mpeg",
+  "mpga",
+  "m4a",
+  "ogg",
+  "opus",
+  "wav",
+  "webm",
+]);
+
 const HALLUCINATION_PATTERNS = [
   /请不吝点[赞讚]/,
   /订阅.{0,8}转发/,
@@ -17,30 +31,43 @@ const HALLUCINATION_PATTERNS = [
   /字幕由.{0,20}提供/,
   /Amara\.org/i,
   /感[谢謝][观觀]看/,
-  /^[\s。，、！？.,!?]*$/, // punctuation/whitespace only
+  /^[\s。，、！？.,!?]*$/,
 ];
 
 function isLikelyHallucination(text: string): boolean {
   const t = text.trim();
   if (t.length === 0) return true;
-  if (t.length > 40) return false; // long transcripts are almost certainly real
+  if (t.length > 40) return false;
   return HALLUCINATION_PATTERNS.some((re) => re.test(t));
 }
 
-export async function transcribeAudio(audioAbsPath: string): Promise<string> {
+function normalizeExt(audioUrl: string): string {
+  const m = audioUrl.match(/\.([a-z0-9]+)(?:\?|$)/i);
+  const raw = (m ? m[1] : "").toLowerCase();
+  if (WHISPER_EXTS.has(raw)) return raw;
+  if (raw === "aac") return "m4a"; // see comment above
+  return "m4a";
+}
+
+export async function transcribeAudio(audioUrl: string): Promise<string> {
   const client = getClient();
-  const stream = fs.createReadStream(audioAbsPath);
+  const ext = normalizeExt(audioUrl);
+  const fetched = await fetch(audioUrl);
+  if (!fetched.ok) {
+    throw new Error(`Failed to fetch audio (${fetched.status}): ${audioUrl}`);
+  }
+  const buffer = Buffer.from(await fetched.arrayBuffer());
+  // toFile lets us control the filename Whisper sees in multipart form-data
+  // (the SDK uses the stream's path otherwise).
+  const file = await toFile(buffer, `audio.${ext}`);
 
   const res = await client.audio.transcriptions.create({
     model: modelId("ASR"),
-    file: stream,
-    // Force Chinese to avoid Whisper auto-detecting wrong language on short clips
+    file,
     language: "zh",
-    // Plain text is enough for our pipeline; we don't need timestamps
     response_format: "text",
   });
 
-  // When response_format is "text", res is a string; with default JSON it's { text: "..." }
   const raw = typeof res === "string" ? res : ((res as { text?: string }).text ?? "");
   const text = raw.trim();
 

@@ -1,7 +1,14 @@
-import { redirect } from "next/navigation";
+"use client";
 
-// /search now lives on /memories (browse + search merged into one).
-// Kept as a permanent redirect for any old bookmarks / external links.
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+// /search now lives on /memories. Client-side redirect — server-side
+// redirect() doesn't work under output: 'export'.
 export default function SearchPage() {
-  redirect("/memories");
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/memories");
+  }, [router]);
+  return null;
 }

@@ -22,7 +22,7 @@ export default function RootLayout({
               href="/"
               className="flex items-center gap-2 text-ink-main font-semibold tracking-tight"
             >
-              <span className="w-7 h-7 rounded-full bg-brand-teal flex items-center justify-center shadow-glow-teal">
+              <span className="w-7 h-7 rounded-full bg-coral-button flex items-center justify-center shadow-glow-coral">
                 <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-white">
                   <path d="M12 2a5 5 0 0 0-5 5v6a5 5 0 0 0 10 0V7a5 5 0 0 0-5-5zM5 11a1 1 0 0 1 2 0 5 5 0 0 0 10 0 1 1 0 0 1 2 0 7 7 0 0 1-6 6.93V21a1 1 0 0 1-2 0v-3.07A7 7 0 0 1 5 11z" />
                 </svg>

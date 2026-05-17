@@ -1,9 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { compressImage } from "@/lib/image";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import { LastSavedPill } from "@/components/LastSavedPill";
+import { apiFetch } from "@/lib/config";
+import {
+  captureFromCamera,
+  isNative,
+  pickFromGallery,
+  startNativeRecording,
+  stopNativeRecording,
+} from "@/lib/native";
 
 const MAX_RECORD_SECONDS = 60;
 const MIN_RECORD_MS = 800;
@@ -29,7 +38,18 @@ function getRecordingErrorMessage(err: unknown): string {
   return err.message || err.name || "权限被拒绝";
 }
 
-export default function CreatePage() {
+export default function CreatePageRoute() {
+  return (
+    <Suspense fallback={null}>
+      <CreatePage />
+    </Suspense>
+  );
+}
+
+function CreatePage() {
+  const router = useRouter();
+  const params = useSearchParams();
+
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageProcessing, setImageProcessing] = useState(false);
@@ -43,14 +63,10 @@ export default function CreatePage() {
   const [locationText, setLocationText] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
-  const [submitStage, setSubmitStage] = useState<
-    "idle" | "uploading"
-  >("idle");
+  const [submitStage, setSubmitStage] = useState<"idle" | "uploading">("idle");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  // The most recent submission, shown as a pill above the form so the
-  // user can keep capturing without waiting for AI to finish.
   const [lastSaved, setLastSaved] = useState<{
     id: string;
     imageUrl: string;
@@ -61,8 +77,11 @@ export default function CreatePage() {
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const galleryInputRef = useRef<HTMLInputElement | null>(null);
   const startTimeRef = useRef<number>(0);
   const autoStoppedRef = useRef<boolean>(false);
+  const nativeRecordingRef = useRef<boolean>(false);
+  const sourceFiredRef = useRef<boolean>(false);
 
   useEffect(() => {
     return () => {
@@ -73,9 +92,7 @@ export default function CreatePage() {
     };
   }, [imagePreview, audioPreview]);
 
-  async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function processImageFile(file: File) {
     setError(null);
     setImageProcessing(true);
     try {
@@ -93,16 +110,89 @@ export default function CreatePage() {
     }
   }
 
+  async function openCamera() {
+    if (isNative()) {
+      try {
+        const file = await captureFromCamera();
+        if (file) await processImageFile(file);
+      } catch (err) {
+        setError(
+          "无法访问相机：" + (err instanceof Error ? err.message : "未知错误")
+        );
+      }
+      return;
+    }
+    fileInputRef.current?.click();
+  }
+
+  async function openGallery() {
+    if (isNative()) {
+      try {
+        const file = await pickFromGallery();
+        if (file) await processImageFile(file);
+      } catch (err) {
+        setError(
+          "无法打开相册：" + (err instanceof Error ? err.message : "未知错误")
+        );
+      }
+      return;
+    }
+    galleryInputRef.current?.click();
+  }
+
+  // Read ?source= from the URL and auto-fire the right picker once.
+  // Then strip the param so a refresh doesn't re-fire it.
+  useEffect(() => {
+    const source = params.get("source");
+    if (!source || sourceFiredRef.current) return;
+    sourceFiredRef.current = true;
+    if (source === "camera") void openCamera();
+    if (source === "gallery") void openGallery();
+    router.replace("/create", { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
+
+  async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processImageFile(file);
+  }
+
   function resetImage() {
     if (imagePreview) URL.revokeObjectURL(imagePreview);
     setImageFile(null);
     setImagePreview(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+    if (galleryInputRef.current) galleryInputRef.current.value = "";
   }
 
   async function startRecording() {
     setError(null);
     setInfo(null);
+
+    if (isNative()) {
+      try {
+        await startNativeRecording();
+        nativeRecordingRef.current = true;
+        autoStoppedRef.current = false;
+        startTimeRef.current = Date.now();
+        setRecording(true);
+        setRecordSeconds(0);
+        timerRef.current = setInterval(() => {
+          const elapsedSec = (Date.now() - startTimeRef.current) / 1000;
+          setRecordSeconds(Math.min(MAX_RECORD_SECONDS, Math.floor(elapsedSec)));
+          if (elapsedSec >= MAX_RECORD_SECONDS) {
+            stopRecording(true);
+          }
+        }, 250);
+      } catch (err) {
+        setError(
+          "无法启动录音：" + (err instanceof Error ? err.message : "未知错误")
+        );
+      }
+      return;
+    }
+
     if (typeof window !== "undefined" && !window.isSecureContext) {
       setError("当前页面不是安全上下文，浏览器会禁止录音。请使用 http://localhost 或 HTTPS 地址访问。");
       return;
@@ -133,7 +223,6 @@ export default function CreatePage() {
         streamRef.current?.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
 
-        // Discard recordings that are too short or too small to be real speech
         if (durationMs < MIN_RECORD_MS || blob.size < MIN_AUDIO_BYTES) {
           setError("录音太短（少于 1 秒），请重新录制。");
           setRecordSeconds(0);
@@ -152,7 +241,6 @@ export default function CreatePage() {
       recorder.start();
       setRecording(true);
       setRecordSeconds(0);
-      // Tick frequently for smooth countdown; auto-stop when over cap.
       timerRef.current = setInterval(() => {
         const elapsedSec = (Date.now() - startTimeRef.current) / 1000;
         setRecordSeconds(Math.min(MAX_RECORD_SECONDS, Math.floor(elapsedSec)));
@@ -166,6 +254,42 @@ export default function CreatePage() {
   }
 
   function stopRecording(autoStop = false) {
+    if (nativeRecordingRef.current) {
+      autoStoppedRef.current = autoStop;
+      const durationMs = Date.now() - startTimeRef.current;
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      setRecording(false);
+      nativeRecordingRef.current = false;
+      void (async () => {
+        try {
+          const result = await stopNativeRecording();
+          if (
+            durationMs < MIN_RECORD_MS ||
+            result.blob.size < MIN_AUDIO_BYTES
+          ) {
+            setError("录音太短（少于 1 秒），请重新录制。");
+            setRecordSeconds(0);
+            return;
+          }
+          if (audioPreview) URL.revokeObjectURL(audioPreview);
+          setAudioBlob(result.blob);
+          setAudioPreview(URL.createObjectURL(result.blob));
+          if (autoStoppedRef.current) {
+            setInfo(`录音已达 ${MAX_RECORD_SECONDS} 秒上限，自动停止。`);
+          }
+        } catch (err) {
+          setError(
+            "录音保存失败：" +
+              (err instanceof Error ? err.message : "未知错误")
+          );
+        }
+      })();
+      return;
+    }
+
     if (!recorderRef.current) return;
     autoStoppedRef.current = autoStop;
     recorderRef.current.stop();
@@ -211,7 +335,7 @@ export default function CreatePage() {
 
     try {
       setSubmitStage("uploading");
-      const res = await fetch("/api/memories", {
+      const res = await apiFetch("/api/memories", {
         method: "POST",
         body: formData,
       });
@@ -223,12 +347,11 @@ export default function CreatePage() {
         id: string;
         imageUrl: string;
       };
-      // Reset the per-photo fields so the user can immediately keep capturing.
-      // Keep locationText — they're probably still in the same place.
       if (imagePreview) URL.revokeObjectURL(imagePreview);
       setImageFile(null);
       setImagePreview(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
+      if (galleryInputRef.current) galleryInputRef.current.value = "";
       if (audioPreview) URL.revokeObjectURL(audioPreview);
       setAudioBlob(null);
       setAudioPreview(null);
@@ -246,33 +369,50 @@ export default function CreatePage() {
   }
 
   const canSubmit = !!imageFile && !submitting && !imageProcessing;
-
   const submitLabel = submitStage === "uploading" ? "上传中…" : "保存记忆";
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5 py-2">
+      {/* Hidden inputs for the web fallback */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleImageChange}
+        className="hidden"
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleImageChange}
+        className="hidden"
+      />
+
       {lastSaved && <LastSavedPill saved={lastSaved} />}
 
       <header className="space-y-2 pt-2">
-        <div className="text-xs font-semibold text-brand-teal uppercase tracking-[0.2em]">
+        <div className="text-xs font-semibold text-brand-coral uppercase tracking-[0.2em]">
           New Memory
         </div>
         <h1 className="text-2xl font-bold text-ink-main tracking-tight">
           创建记忆
         </h1>
         <p className="text-sm text-ink-sub">
-          上传图片 → 录一句话或写一句备注 → 保存。
+          选一张照片，录一句话，给未来的自己留个线索。
         </p>
       </header>
 
       {/* Image */}
       <section className="space-y-2">
         <label className="block text-xs font-semibold text-ink-mute uppercase tracking-[0.15em] px-1">
-          图片 <span className="text-brand-orange">*</span>
+          图片 <span className="text-brand-coral">*</span>
         </label>
+
         {imagePreview ? (
-          <div className="relative rounded-4xl bg-white p-1.5 shadow-soft-sm">
-            <div className="rounded-[24px] overflow-hidden bg-paper-bg">
+          <div className="relative">
+            <div className="photo-frame mx-auto max-w-[340px]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={imagePreview}
@@ -294,34 +434,45 @@ export default function CreatePage() {
             )}
           </div>
         ) : (
-          <label
-            className={`flex flex-col items-center justify-center rounded-3xl bg-white p-10 text-center cursor-pointer shadow-soft-sm transition ${
-              imageProcessing
-                ? "text-ink-mute"
-                : "text-ink-sub hover:shadow-soft"
-            }`}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={handleImageChange}
-              disabled={imageProcessing}
-              className="hidden"
-            />
-            <div className="w-12 h-12 rounded-2xl bg-brand-teal/10 flex items-center justify-center mb-3">
-              <svg viewBox="0 0 24 24" className="w-6 h-6 fill-brand-teal">
-                <path d="M4 5h3l2-2h6l2 2h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zm8 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10z" />
-              </svg>
+          <div className="rounded-3xl bg-white p-6 shadow-soft-sm space-y-3">
+            <div className="text-center">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-coral-button flex items-center justify-center mb-3 shadow-glow-coral">
+                <svg viewBox="0 0 24 24" className="w-7 h-7 fill-white">
+                  <path d="M4 5h3l2-2h6l2 2h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zm8 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10z" />
+                </svg>
+              </div>
+              <div className="text-sm font-medium text-ink-main">
+                {imageProcessing ? "正在压缩…" : "选择一张照片"}
+              </div>
+              <div className="text-xs text-ink-mute mt-1">
+                jpg / png / webp，自动压缩到 ≤1280px
+              </div>
             </div>
-            <div className="text-sm font-medium text-ink-main">
-              {imageProcessing ? "正在压缩…" : "点击选择图片 / 拍照"}
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={openCamera}
+                disabled={imageProcessing}
+                className="rounded-2xl bg-coral-button text-white font-medium text-sm py-3 shadow-glow-coral hover:opacity-95 transition disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
+                  <path d="M4 5h3l2-2h6l2 2h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zm8 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10z" />
+                </svg>
+                拍照
+              </button>
+              <button
+                type="button"
+                onClick={openGallery}
+                disabled={imageProcessing}
+                className="rounded-2xl bg-paper-warm text-ink-main font-medium text-sm py-3 hover:bg-paper-edge transition disabled:opacity-50 flex items-center justify-center gap-2 border border-paper-edge"
+              >
+                <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
+                  <path d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 13.5l2.5 3 3.5-4.5 4.5 6H5l3.5-4.5z" />
+                </svg>
+                从相册选
+              </button>
             </div>
-            <div className="text-xs text-ink-mute mt-1">
-              支持 jpg / png / webp，自动压缩到 ≤1280px
-            </div>
-          </label>
+          </div>
         )}
       </section>
 
@@ -336,7 +487,7 @@ export default function CreatePage() {
             <button
               type="button"
               onClick={resetAudio}
-              className="text-xs text-ink-mute hover:text-brand-teal transition"
+              className="text-xs text-ink-mute hover:text-brand-coral transition"
             >
               重录
             </button>
@@ -371,7 +522,7 @@ export default function CreatePage() {
           <button
             type="button"
             onClick={startRecording}
-            className="w-full flex items-center justify-center gap-2 rounded-3xl bg-white p-4 text-ink-sub shadow-soft-sm hover:shadow-soft hover:text-brand-teal transition"
+            className="w-full flex items-center justify-center gap-2 rounded-3xl bg-white p-4 text-ink-sub shadow-soft-sm hover:shadow-soft hover:text-brand-coral transition"
           >
             <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
               <path d="M12 2a5 5 0 0 0-5 5v6a5 5 0 0 0 10 0V7a5 5 0 0 0-5-5zM5 11a1 1 0 0 1 2 0 5 5 0 0 0 10 0 1 1 0 0 1 2 0 7 7 0 0 1-6 6.93V21a1 1 0 0 1-2 0v-3.07A7 7 0 0 1 5 11z" />
@@ -426,7 +577,7 @@ export default function CreatePage() {
       )}
 
       {info && !error && (
-        <div className="rounded-3xl glass p-4 text-sm text-brand-teal shadow-soft-sm">
+        <div className="rounded-3xl glass p-4 text-sm text-brand-coral shadow-soft-sm">
           {info}
         </div>
       )}
@@ -436,7 +587,7 @@ export default function CreatePage() {
         disabled={!canSubmit}
         className={`w-full rounded-full px-4 py-3.5 font-semibold text-white transition ${
           canSubmit
-            ? "bg-brand-teal hover:bg-brand-teal-deep shadow-glow-teal"
+            ? "bg-coral-button shadow-glow-coral hover:opacity-95"
             : "bg-paper-edge text-ink-mute cursor-not-allowed"
         }`}
       >

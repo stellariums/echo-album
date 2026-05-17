@@ -1,12 +1,14 @@
 // Echo Album — memory storage
-// SQLite stores tags/entities as JSON-stringified text (no native array type).
+// tags/entities are stored as JSON-stringified text for portability across
+// SQLite (local dev legacy) and Postgres (production). LocalDB → Postgres
+// migration: just `prisma db push` against a fresh DATABASE_URL.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

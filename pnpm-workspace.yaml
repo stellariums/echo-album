@@ -2,3 +2,5 @@ allowBuilds:
   '@prisma/client': true
   '@prisma/engines': true
   prisma: true
+patchedDependencies:
+  capacitor-voice-recorder: patches/capacitor-voice-recorder.patch

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AudioPlayer } from "@/components/AudioPlayer";
+import { apiFetch, assetUrl } from "@/lib/config";
 
 interface InitialMemory {
   id: string;
@@ -47,11 +48,56 @@ const EXAMPLE_QUERIES = [
   "适合写东西的咖啡店",
 ];
 
-export function MemoriesBrowser({ initial }: { initial: InitialMemory[] }) {
+export function MemoriesBrowser() {
+  const [initial, setInitial] = useState<InitialMemory[] | null>(null);
+  const [initialError, setInitialError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [response, setResponse] = useState<SearchResponse | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await apiFetch("/api/memories", { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const rows = (await res.json()) as Array<{
+          id: string;
+          title: string | null;
+          summary: string | null;
+          imageUrl: string;
+          audioUrl: string | null;
+          tags: string | null;
+          createdAt: string;
+          locationText: string | null;
+          status: string;
+        }>;
+        if (cancelled) return;
+        setInitial(
+          rows.map((m) => ({
+            id: m.id,
+            title: m.title,
+            summary: m.summary,
+            imageUrl: m.imageUrl,
+            audioUrl: m.audioUrl,
+            tags: m.tags ? (JSON.parse(m.tags) as string[]) : [],
+            createdAt: m.createdAt,
+            locationText: m.locationText,
+            status: m.status,
+          }))
+        );
+      } catch (err) {
+        if (!cancelled) {
+          setInitialError(err instanceof Error ? err.message : "加载失败");
+        }
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function runSearch(q: string) {
     const cleaned = q.trim();
@@ -61,7 +107,7 @@ export function MemoriesBrowser({ initial }: { initial: InitialMemory[] }) {
     setError(null);
     setResponse(null);
     try {
-      const res = await fetch("/api/search", {
+      const res = await apiFetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: cleaned }),
@@ -95,7 +141,7 @@ export function MemoriesBrowser({ initial }: { initial: InitialMemory[] }) {
   return (
     <div className="space-y-5 py-2">
       <header className="space-y-2 pt-2">
-        <div className="text-xs font-semibold text-brand-teal uppercase tracking-[0.2em]">
+        <div className="text-xs font-semibold text-brand-coral uppercase tracking-[0.2em]">
           Memories
         </div>
         <h1 className="text-2xl font-bold text-ink-main tracking-tight">
@@ -122,9 +168,9 @@ export function MemoriesBrowser({ initial }: { initial: InitialMemory[] }) {
               type="button"
               onClick={clearSearch}
               aria-label="清除搜索"
-              className="w-9 h-9 rounded-full bg-paper-bg text-ink-sub flex items-center justify-center hover:bg-paper-edge transition shrink-0"
+              className="w-9 h-9 rounded-full bg-ink-mute text-white flex items-center justify-center hover:bg-ink-sub transition shrink-0"
             >
-              <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
+              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current">
                 <path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z" />
               </svg>
             </button>
@@ -136,7 +182,7 @@ export function MemoriesBrowser({ initial }: { initial: InitialMemory[] }) {
               className={`w-9 h-9 rounded-full flex items-center justify-center transition shrink-0 ${
                 submitting || !query.trim()
                   ? "bg-paper-edge text-ink-mute cursor-not-allowed"
-                  : "bg-brand-teal text-white shadow-glow-teal hover:bg-brand-teal-deep"
+                  : "bg-coral-button text-white shadow-glow-coral hover:opacity-95"
               }`}
             >
               <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
@@ -149,7 +195,11 @@ export function MemoriesBrowser({ initial }: { initial: InitialMemory[] }) {
 
       {/* Browse mode: examples + grid */}
       {!inSearchMode && (
-        <BrowseMode initial={initial} onExample={runSearch} />
+        <BrowseMode
+          initial={initial}
+          initialError={initialError}
+          onExample={runSearch}
+        />
       )}
 
       {/* Search mode states */}
@@ -160,10 +210,10 @@ export function MemoriesBrowser({ initial }: { initial: InitialMemory[] }) {
       )}
 
       {submitting && (
-        <div className="rounded-3xl glass p-4 text-sm text-brand-teal flex items-center gap-3 shadow-soft-sm">
+        <div className="rounded-3xl glass p-4 text-sm text-brand-coral flex items-center gap-3 shadow-soft-sm">
           <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-teal opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-teal"></span>
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-coral opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-coral"></span>
           </span>
           <span>AI 正在改写问题、查找候选、重排…</span>
         </div>
@@ -176,9 +226,11 @@ export function MemoriesBrowser({ initial }: { initial: InitialMemory[] }) {
 
 function BrowseMode({
   initial,
+  initialError,
   onExample,
 }: {
-  initial: InitialMemory[];
+  initial: InitialMemory[] | null;
+  initialError: string | null;
   onExample: (q: string) => void;
 }) {
   return (
@@ -193,7 +245,7 @@ function BrowseMode({
               key={q}
               type="button"
               onClick={() => onExample(q)}
-              className="text-sm rounded-full bg-white border border-paper-edge px-4 py-2 text-ink-sub hover:border-brand-teal hover:text-brand-teal transition"
+              className="text-sm rounded-full bg-white border border-paper-edge px-4 py-2 text-ink-sub hover:border-brand-coral hover:text-brand-coral transition"
             >
               {q}
             </button>
@@ -204,17 +256,25 @@ function BrowseMode({
       <section className="space-y-3 pt-2">
         <div className="flex items-baseline justify-between px-1">
           <h2 className="text-xs font-semibold text-ink-mute uppercase tracking-[0.2em]">
-            全部 · {initial.length} 张
+            全部 · {initial?.length ?? 0} 张
           </h2>
         </div>
 
-        {initial.length === 0 ? (
+        {initialError ? (
+          <div className="rounded-3xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            加载失败：{initialError}
+          </div>
+        ) : initial === null ? (
+          <div className="rounded-3xl bg-white p-8 text-center text-sm text-ink-mute shadow-soft-sm">
+            加载中…
+          </div>
+        ) : initial.length === 0 ? (
           <div className="rounded-3xl bg-white p-10 text-center shadow-soft-sm">
             <div className="text-4xl mb-3">📷</div>
             <div className="text-sm text-ink-sub mb-3">还没有记忆</div>
             <Link
               href="/create"
-              className="inline-flex items-center gap-1.5 rounded-full bg-brand-teal text-white px-4 py-2 text-sm font-medium shadow-glow-teal hover:bg-brand-teal-deep transition"
+              className="inline-flex items-center gap-1.5 rounded-full bg-coral-button text-white px-4 py-2 text-sm font-medium shadow-glow-coral hover:opacity-95 transition"
             >
               创建第一张
             </Link>
@@ -224,13 +284,13 @@ function BrowseMode({
             {initial.map((m) => (
               <Link
                 key={m.id}
-                href={`/memory/${m.id}`}
+                href={`/memory?id=${m.id}`}
                 className="block rounded-3xl bg-white p-1.5 shadow-soft-sm hover:shadow-soft transition group"
               >
                 <div className="relative aspect-square rounded-[18px] overflow-hidden bg-paper-bg">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={m.imageUrl}
+                    src={assetUrl(m.imageUrl)}
                     alt={m.title ?? "memory"}
                     className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
                   />
@@ -277,12 +337,16 @@ function SearchResultsView({
   const { answer, confidence, tier, results, suggestions } = response;
 
   const tierMap = {
-    high: { label: "找到了", chipBg: "bg-brand-teal" },
-    medium: { label: "可能相关", chipBg: "bg-brand-orange" },
+    high: { label: "找到了", chipBg: "bg-brand-coral" },
+    medium: { label: "可能相关", chipBg: "bg-brand-sunset" },
     low: { label: "不太确定", chipBg: "bg-ink-mute" },
     empty: { label: "没找到", chipBg: "bg-ink-mute" },
   };
   const tierStyle = tierMap[tier];
+
+  // For the high-tier featured card, use the runner-ups as the stacked
+  // background photos (mockup-style polaroid stack).
+  const otherPhotos = results.filter((r) => !r.isBestMatch).slice(0, 2);
 
   return (
     <div className="space-y-4">
@@ -296,7 +360,10 @@ function SearchResultsView({
           <span className="text-xs text-ink-mute">
             置信度 {Math.round(confidence * 100)}%
           </span>
-          <span className="text-xs text-ink-mute ml-auto">
+          <span className="text-xs text-ink-mute ml-auto flex items-center gap-1">
+            <svg viewBox="0 0 24 24" className="w-3 h-3 fill-brand-coral">
+              <path d="M12 0L14.5 9.5L24 12L14.5 14.5L12 24L9.5 14.5L0 12L9.5 9.5L12 0Z" />
+            </svg>
             找到 <span className="text-ink-main font-semibold">{results.length}</span> 张
           </span>
         </div>
@@ -307,7 +374,7 @@ function SearchResultsView({
         <div className="space-y-4">
           {results.map((r, idx) =>
             r.isBestMatch ? (
-              <FeaturedResult key={r.id} result={r} />
+              <FeaturedResult key={r.id} result={r} stack={otherPhotos} />
             ) : (
               <CompactResult key={r.id} result={r} rank={idx + 1} />
             )
@@ -326,7 +393,7 @@ function SearchResultsView({
                 key={s}
                 type="button"
                 onClick={() => onSuggestion(s)}
-                className="text-sm rounded-full bg-white border border-paper-edge px-4 py-1.5 text-ink-sub hover:border-brand-teal hover:text-brand-teal transition"
+                className="text-sm rounded-full bg-white border border-paper-edge px-4 py-1.5 text-ink-sub hover:border-brand-coral hover:text-brand-coral transition"
               >
                 {s}
               </button>
@@ -338,61 +405,121 @@ function SearchResultsView({
   );
 }
 
-function FeaturedResult({ result }: { result: SearchResult }) {
+function FeaturedResult({
+  result,
+  stack,
+}: {
+  result: SearchResult;
+  stack: SearchResult[];
+}) {
+  const hasStack = stack.length > 0;
+
   return (
-    <Link href={`/memory/${result.id}`} className="block group">
-      <div className="relative">
-        <div className="rounded-4xl bg-white p-1.5 shadow-soft">
-          <div className="relative aspect-[4/5] rounded-[24px] overflow-hidden bg-paper-bg">
+    <Link href={`/memory?id=${result.id}`} className="block group">
+      {hasStack ? (
+        // Mockup-style polaroid stack: best match centered, runner-ups tilted behind
+        <div className="relative h-[260px] flex justify-center items-center mb-2">
+          {stack[1] && (
+            <div className="absolute photo-frame w-[280px] h-[220px] rotate-[8deg] translate-x-5 -translate-y-2 z-10 opacity-80 scale-95">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={assetUrl(stack[1].imageUrl)}
+                alt=""
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
+          {stack[0] && (
+            <div className="absolute photo-frame w-[280px] h-[220px] -rotate-6 -translate-x-4 z-20">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={assetUrl(stack[0].imageUrl)}
+                alt=""
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
+          <div className="absolute photo-frame w-[280px] h-[220px] rotate-2 translate-y-3 z-30 shadow-photo-card group-hover:scale-[1.02] transition-transform">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={result.imageUrl}
+              src={assetUrl(result.imageUrl)}
               alt={result.title ?? ""}
-              className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-300"
+              className="w-full h-full object-cover"
             />
-            <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-brand-teal text-white text-[11px] font-semibold shadow-glow-teal">
+            <div className="absolute top-2 left-2 px-2.5 py-1 rounded-full bg-coral-button text-white text-[10px] font-semibold shadow-glow-coral">
               ✦ 最匹配
             </div>
           </div>
         </div>
-
-        <div className="-mt-12 mx-3 sm:mx-4 rounded-4xl glass p-5 shadow-soft relative">
-          <h3 className="text-lg font-semibold text-ink-main truncate mb-1">
-            {result.title ?? "未命名记忆"}
-          </h3>
-          <div className="text-xs text-ink-mute mb-3">
-            {new Date(result.createdAt).toLocaleDateString("zh-CN")}
-            {result.locationText ? ` · ${result.locationText}` : ""}
+      ) : (
+        <div className="rounded-4xl bg-white p-1.5 shadow-soft">
+          <div className="relative aspect-[4/5] rounded-[24px] overflow-hidden bg-paper-bg">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={assetUrl(result.imageUrl)}
+              alt={result.title ?? ""}
+              className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-300"
+            />
+            <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-coral-button text-white text-[11px] font-semibold shadow-glow-coral">
+              ✦ 最匹配
+            </div>
           </div>
-          {result.summary && (
-            <p className="text-sm text-ink-sub leading-relaxed mb-3">
-              {result.summary}
-            </p>
-          )}
-          {result.reason && (
-            <div className="text-xs text-brand-teal leading-snug mb-3 bg-brand-teal/8 rounded-2xl px-3 py-2">
-              <span className="font-semibold">匹配原因：</span>
-              {result.reason}
-            </div>
-          )}
-          {result.audioUrl && (
-            <div onClick={(e) => e.preventDefault()}>
-              <AudioPlayer src={result.audioUrl} seed={result.id} />
-            </div>
-          )}
-          {result.matchedKeywords.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-3">
-              {result.matchedKeywords.slice(0, 6).map((k) => (
-                <span
-                  key={k}
-                  className="text-[11px] px-2 py-0.5 rounded-full bg-paper-bg text-ink-sub"
-                >
-                  {k}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
+      )}
+
+      <div
+        className={`mx-3 sm:mx-4 rounded-4xl glass p-5 shadow-soft relative ${
+          hasStack ? "-mt-4" : "-mt-12"
+        }`}
+      >
+        <div className="flex items-center justify-between dashed-divider pb-3 mb-3 text-xs text-ink-sub font-medium">
+          <span>随记感受</span>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className="w-4 h-4 text-brand-coral"
+          >
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+          </svg>
+        </div>
+
+        <h3 className="text-lg font-semibold text-ink-main truncate mb-1">
+          {result.title ?? "未命名记忆"}
+        </h3>
+        <div className="text-xs text-ink-mute mb-3">
+          {new Date(result.createdAt).toLocaleDateString("zh-CN")}
+          {result.locationText ? ` · ${result.locationText}` : ""}
+        </div>
+        {result.summary && (
+          <p className="text-sm text-ink-sub leading-relaxed mb-3">
+            {result.summary}
+          </p>
+        )}
+        {result.reason && (
+          <div className="text-xs text-brand-coral leading-snug mb-3 bg-brand-coral/10 rounded-2xl px-3 py-2">
+            <span className="font-semibold">匹配原因：</span>
+            {result.reason}
+          </div>
+        )}
+        {result.audioUrl && (
+          <div onClick={(e) => e.preventDefault()}>
+            <AudioPlayer src={assetUrl(result.audioUrl)} seed={result.id} />
+          </div>
+        )}
+        {result.matchedKeywords.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {result.matchedKeywords.slice(0, 6).map((k) => (
+              <span
+                key={k}
+                className="text-[11px] px-2 py-0.5 rounded-full bg-paper-warm text-ink-sub"
+              >
+                {k}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </Link>
   );
@@ -401,14 +528,14 @@ function FeaturedResult({ result }: { result: SearchResult }) {
 function CompactResult({ result, rank }: { result: SearchResult; rank: number }) {
   return (
     <Link
-      href={`/memory/${result.id}`}
+      href={`/memory?id=${result.id}`}
       className="block rounded-3xl bg-white p-3 shadow-soft-sm hover:shadow-soft transition"
     >
       <div className="flex gap-3">
         <div className="relative w-24 h-24 shrink-0 rounded-2xl overflow-hidden bg-paper-bg">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={result.imageUrl}
+            src={assetUrl(result.imageUrl)}
             alt={result.title ?? ""}
             className="w-full h-full object-cover"
           />

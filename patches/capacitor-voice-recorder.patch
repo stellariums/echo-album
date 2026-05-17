@@ -1,0 +1,35 @@
+diff --git a/android/src/main/java/com/tchvu3/capacitorvoicerecorder/CustomMediaRecorder.java b/android/src/main/java/com/tchvu3/capacitorvoicerecorder/CustomMediaRecorder.java
+index a62dcee1b57fb65fd24cb585d70bcce46e16c8ee..b145ddf4589def4dff9bd5f0a27fbc795d901a41 100644
+--- a/android/src/main/java/com/tchvu3/capacitorvoicerecorder/CustomMediaRecorder.java
++++ b/android/src/main/java/com/tchvu3/capacitorvoicerecorder/CustomMediaRecorder.java
+@@ -26,7 +26,7 @@ public class CustomMediaRecorder {
+     private void generateMediaRecorder() throws IOException {
+         mediaRecorder = new MediaRecorder();
+         mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+-        mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.AAC_ADTS);
++        mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+         mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+         mediaRecorder.setAudioEncodingBitRate(96000);
+         mediaRecorder.setAudioSamplingRate(44100);
+@@ -54,7 +54,7 @@ public class CustomMediaRecorder {
+             }
+         }
+ 
+-        outputFile = File.createTempFile(String.format("recording-%d", System.currentTimeMillis()), ".aac", outputDir);
++        outputFile = File.createTempFile(String.format("recording-%d", System.currentTimeMillis()), ".m4a", outputDir);
+ 
+         if (directory == null) {
+             outputFile.deleteOnExit();
+diff --git a/android/src/main/java/com/tchvu3/capacitorvoicerecorder/VoiceRecorder.java b/android/src/main/java/com/tchvu3/capacitorvoicerecorder/VoiceRecorder.java
+index 2ee3681bf27411bf88a2a30882d8ef619dc72935..e76f95bc23150ecbe593e4de92f85e3525cd01ae 100644
+--- a/android/src/main/java/com/tchvu3/capacitorvoicerecorder/VoiceRecorder.java
++++ b/android/src/main/java/com/tchvu3/capacitorvoicerecorder/VoiceRecorder.java
+@@ -116,7 +116,7 @@ public class VoiceRecorder extends Plugin {
+             RecordData recordData = new RecordData(
+                 recordDataBase64,
+                 getMsDurationOfAudioFile(recordedFile.getAbsolutePath()),
+-                "audio/aac",
++                "audio/mp4",
+                 path
+             );
+             if ((recordDataBase64 == null && path == null) || recordData.getMsDuration() < 0) {

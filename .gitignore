@@ -36,3 +36,19 @@ _tmp_*
 # Logs
 *.log
 npm-debug.log*
+
+# Capacitor / Android — build artifacts and per-machine config
+android/.gradle/
+android/build/
+android/app/build/
+android/captures/
+android/.idea/
+android/local.properties
+android/app/release/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/public/
+*.iml
+*.keystore
+*.jks
+*.apk
+*.aab

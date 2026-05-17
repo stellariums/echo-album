@@ -7,8 +7,10 @@
     -webkit-tap-highlight-color: transparent;
   }
   body {
-    background: linear-gradient(180deg, #F8FAFB 0%, #EAEFF3 100%);
-    color: #242A38;
+    /* Sunset gradient — sky-blue at top, warm peach at bottom (mockup) */
+    background: linear-gradient(180deg, #EAF2FF 0%, #FEF3EF 100%);
+    background-attachment: fixed;
+    color: #1A1A1A;
     min-height: 100vh;
     font-feature-settings: "tnum" on, "cv11" on;
   }
@@ -27,5 +29,17 @@
     background-color: rgba(255, 255, 255, 0.92);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
+  }
+  /* Polaroid-style photo card with white border (mockup) */
+  .photo-frame {
+    border: 4px solid white;
+    border-radius: 12px;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    background-color: #ddd;
+  }
+  /* Dashed underline used in record cards under section headers */
+  .dashed-divider {
+    border-bottom: 1px dashed #eee;
   }
 }
