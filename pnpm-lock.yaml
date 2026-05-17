@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  capacitor-voice-recorder: e9097eef329ecb5e1a6ccaccf9af4d3f9a38adcbe241dd75bb0543756c2f8e3d
+
 importers:
 
   .:
@@ -34,7 +37,7 @@ importers:
         version: 5.22.0(prisma@5.22.0)
       capacitor-voice-recorder:
         specifier: ^7.0.6
-        version: 7.0.6(@capacitor/core@8.3.4)(@capacitor/filesystem@8.1.2(@capacitor/core@8.3.4))
+        version: 7.0.6(patch_hash=e9097eef329ecb5e1a6ccaccf9af4d3f9a38adcbe241dd75bb0543756c2f8e3d)(@capacitor/core@8.3.4)(@capacitor/filesystem@8.1.2(@capacitor/core@8.3.4))
       next:
         specifier: ^14.2.33
         version: 14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -1365,7 +1368,7 @@ snapshots:
       '@capacitor/core': 8.3.4
       '@capacitor/filesystem': 8.1.2(@capacitor/core@8.3.4)
 
-  capacitor-voice-recorder@7.0.6(@capacitor/core@8.3.4)(@capacitor/filesystem@8.1.2(@capacitor/core@8.3.4)):
+  capacitor-voice-recorder@7.0.6(patch_hash=e9097eef329ecb5e1a6ccaccf9af4d3f9a38adcbe241dd75bb0543756c2f8e3d)(@capacitor/core@8.3.4)(@capacitor/filesystem@8.1.2(@capacitor/core@8.3.4)):
     dependencies:
       '@capacitor/core': 8.3.4
       capacitor-blob-writer: 1.1.20(@capacitor/core@8.3.4)(@capacitor/filesystem@8.1.2(@capacitor/core@8.3.4))

@@ -48,9 +48,12 @@ function extFromMime(mime: string, fallback: string): string {
     "audio/wav": "wav",
     "audio/x-wav": "wav",
     "audio/x-m4a": "m4a",
-    // AAC payloads from Capacitor / Android voice-recorder are typically
-    // MP4-wrapped; Whisper rejects ".aac" but accepts ".m4a", so save them
-    // with the latter extension.
+    // Legacy: pre-patch APKs (capacitor-voice-recorder default) emitted raw
+    // ADTS labelled audio/aac. Whisper rejects ".aac" but accepts ".m4a";
+    // the rename alone wasn't enough (content was still ADTS, not MP4) —
+    // we kept this mapping so old clients at least save with a matching
+    // extension. Current APK builds use a patched plugin that emits real
+    // MP4-AAC and audio/mp4.
     "audio/aac": "m4a",
   };
   return map[baseMimeType(mime)] ?? fallback;

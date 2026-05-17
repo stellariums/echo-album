@@ -1,16 +1,16 @@
 // ASR: speech-to-text via Whisper (whisper-large-v3) through the OpenAI-compatible
 // /v1/audio/transcriptions endpoint. Supports webm/opus from browser MediaRecorder
-// and m4a/aac from Capacitor's voice recorder.
+// and m4a (MP4-wrapped AAC) from Capacitor's voice recorder.
 
 import fs from "node:fs";
 import path from "node:path";
 import { toFile } from "openai";
 import { getClient, modelId } from "./client";
 
-// Whisper accepts only this list. AAC raw streams are not on it, but the
-// Capacitor voice-recorder plugin produces MP4-wrapped AAC even when its
-// mimeType says "audio/aac" — so renaming the upload to .m4a makes Whisper
-// happy without re-encoding.
+// Whisper accepts only this list — both filename extension and content must
+// match. The Capacitor voice-recorder plugin is patched (see
+// patches/capacitor-voice-recorder.patch) to emit a real MP4 container so
+// .m4a is honest. Raw .aac (ADTS) was rejected by Whisper even when renamed.
 const WHISPER_EXTS = new Set([
   "flac",
   "mp3",
