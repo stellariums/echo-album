@@ -151,7 +151,11 @@ export function MemoriesBrowser() {
 
       {/* Pill search bar */}
       <form onSubmit={handleSubmit}>
-        <div className="rounded-full bg-white h-14 flex items-center px-5 gap-3 shadow-soft-sm focus-within:shadow-soft transition">
+        <div
+          className={`relative search-underline rounded-full bg-white h-14 flex items-center px-5 gap-3 shadow-soft-sm focus-within:shadow-soft transition ${
+            inSearchMode ? "is-active" : ""
+          }`}
+        >
           <svg viewBox="0 0 24 24" className="w-5 h-5 fill-ink-sub shrink-0">
             <path d="M15.5 14h-.8l-.27-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.6 4.23-1.57l.27.28v.79L19 20.49 20.49 19l-4.99-5zm-6 0a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z" />
           </svg>
@@ -168,9 +172,9 @@ export function MemoriesBrowser() {
               type="button"
               onClick={clearSearch}
               aria-label="清除搜索"
-              className="w-9 h-9 rounded-full bg-ink-mute text-white flex items-center justify-center hover:bg-ink-sub transition shrink-0"
+              className="w-7 h-7 rounded-full bg-ink-mute/70 text-white flex items-center justify-center hover:bg-ink-sub transition shrink-0"
             >
-              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current">
+              <svg viewBox="0 0 24 24" className="w-3 h-3 fill-current">
                 <path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z" />
               </svg>
             </button>
@@ -334,8 +338,11 @@ function SearchResultsView({
   response: SearchResponse;
   onSuggestion: (q: string) => void;
 }) {
-  const { answer, confidence, tier, results, suggestions } = response;
+  const { query, answer, confidence, tier, results, suggestions } = response;
 
+  // Tier label is only worth showing when we're not in the confident path —
+  // for "high" the count line speaks for itself (matches mockup).
+  const showTierChip = tier !== "high";
   const tierMap = {
     high: { label: "找到了", chipBg: "bg-brand-coral" },
     medium: { label: "可能相关", chipBg: "bg-brand-sunset" },
@@ -350,24 +357,38 @@ function SearchResultsView({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-3xl bg-white p-5 shadow-soft-sm">
-        <div className="flex items-center gap-2 mb-2 flex-wrap">
-          <span
-            className={`text-[11px] font-semibold tracking-wider uppercase text-white px-2 py-0.5 rounded-full ${tierStyle.chipBg}`}
-          >
-            {tierStyle.label}
-          </span>
-          <span className="text-xs text-ink-mute">
-            置信度 {Math.round(confidence * 100)}%
-          </span>
-          <span className="text-xs text-ink-mute ml-auto flex items-center gap-1">
-            <svg viewBox="0 0 24 24" className="w-3 h-3 fill-brand-coral">
-              <path d="M12 0L14.5 9.5L24 12L14.5 14.5L12 24L9.5 14.5L0 12L9.5 9.5L12 0Z" />
-            </svg>
-            找到 <span className="text-ink-main font-semibold">{results.length}</span> 张
-          </span>
+      {/* Single-line result count, mockup-style */}
+      <div className="px-1 pt-1 space-y-1.5">
+        <div className="flex items-center gap-2 text-[15px] text-ink-main font-semibold">
+          <svg viewBox="0 0 24 24" className="w-4 h-4 fill-brand-coral shrink-0">
+            <path d="M12 0L14.5 9.5L24 12L14.5 14.5L12 24L9.5 14.5L0 12L9.5 9.5L12 0Z" />
+          </svg>
+          {results.length > 0 ? (
+            <span>
+              找到了 <span className="text-brand-coral">{results.length}</span> 张
+              <span className="text-ink-sub font-medium">「{query}」</span>
+            </span>
+          ) : (
+            <span className="text-ink-sub">没找到「{query}」</span>
+          )}
+          {showTierChip && results.length > 0 && (
+            <span
+              className={`ml-auto text-[10px] font-semibold tracking-wider uppercase text-white px-2 py-0.5 rounded-full ${tierStyle.chipBg}`}
+            >
+              {tierStyle.label}
+            </span>
+          )}
         </div>
-        <div className="text-[15px] text-ink-main leading-relaxed">{answer}</div>
+        {answer && (
+          <div className="text-[13px] text-ink-sub leading-relaxed pl-6">
+            {answer}
+            {tier !== "high" && (
+              <span className="text-ink-mute ml-1.5">
+                · 置信度 {Math.round(confidence * 100)}%
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {results.length > 0 && (
@@ -468,20 +489,19 @@ function FeaturedResult({
       )}
 
       <div
-        className={`mx-3 sm:mx-4 rounded-4xl glass p-5 shadow-soft relative ${
+        className={`mx-3 sm:mx-4 rounded-4xl glass p-6 shadow-soft relative ${
           hasStack ? "-mt-4" : "-mt-12"
         }`}
       >
-        <div className="flex items-center justify-between dashed-divider pb-3 mb-3 text-xs text-ink-sub font-medium">
-          <span>随记感受</span>
+        <div className="flex items-center justify-between dashed-divider pb-3 mb-3">
+          <span className="text-[13px] text-ink-sub font-semibold tracking-wide">
+            随记感受
+          </span>
           <svg
             viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className="w-4 h-4 text-brand-coral"
+            className="w-[18px] h-[18px] fill-brand-coral drop-shadow-[0_2px_4px_rgba(255,107,139,0.35)]"
           >
-            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
           </svg>
         </div>
 
@@ -493,9 +513,10 @@ function FeaturedResult({
           {result.locationText ? ` · ${result.locationText}` : ""}
         </div>
         {result.summary && (
-          <p className="text-sm text-ink-sub leading-relaxed mb-3">
-            {result.summary}
-          </p>
+          <div className="text-sm leading-relaxed mb-3 space-y-0.5">
+            <div className="text-ink-mute font-semibold text-[13px]">随记：</div>
+            <p className="text-ink-sub pl-0.5">「{result.summary}」</p>
+          </div>
         )}
         {result.reason && (
           <div className="text-xs text-brand-coral leading-snug mb-3 bg-brand-coral/10 rounded-2xl px-3 py-2">

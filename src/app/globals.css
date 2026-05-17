@@ -42,4 +42,31 @@
   .dashed-divider {
     border-bottom: 1px dashed #eee;
   }
+  /* Active-search underline that slides in beneath the query text */
+  .search-underline::after {
+    content: "";
+    position: absolute;
+    left: 1.25rem;
+    right: 1.25rem;
+    bottom: 0.5rem;
+    height: 2px;
+    border-radius: 2px;
+    background: linear-gradient(
+      90deg,
+      rgba(74, 144, 226, 0) 0%,
+      #4a90e2 18%,
+      #4a90e2 82%,
+      rgba(74, 144, 226, 0) 100%
+    );
+    opacity: 0;
+    transform: scaleX(0.6);
+    transform-origin: center;
+    transition:
+      opacity 0.25s ease,
+      transform 0.25s ease;
+  }
+  .search-underline.is-active::after {
+    opacity: 1;
+    transform: scaleX(1);
+  }
 }
