@@ -1,6 +1,8 @@
 // Vision: image understanding + OCR + tagging via Gemini through chat.completions.
 // Sends a data-URL image, asks for strict JSON output, parses the response.
 
+import fs from "node:fs/promises";
+import path from "node:path";
 import { getClient, modelId } from "./client";
 import { extractJson, isJsonExtractionError } from "./json-utils";
 
@@ -54,9 +56,7 @@ interface RawVisionJson {
   important_details?: string[];
 }
 
-function mimeFromExt(url: string): string {
-  const m = url.match(/\.([a-z0-9]+)(?:\?|$)/i);
-  const ext = m ? `.${m[1].toLowerCase()}` : "";
+function mimeFromExt(ext: string): string {
   const map: Record<string, string> = {
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
@@ -64,16 +64,12 @@ function mimeFromExt(url: string): string {
     ".webp": "image/webp",
     ".gif": "image/gif",
   };
-  return map[ext] ?? "image/jpeg";
+  return map[ext.toLowerCase()] ?? "image/jpeg";
 }
 
-export async function analyzeImage(imageUrl: string): Promise<VisionResult> {
-  const fetched = await fetch(imageUrl);
-  if (!fetched.ok) {
-    throw new Error(`Failed to fetch image (${fetched.status}): ${imageUrl}`);
-  }
-  const buffer = Buffer.from(await fetched.arrayBuffer());
-  const mime = fetched.headers.get("content-type") || mimeFromExt(imageUrl);
+export async function analyzeImage(imageAbsPath: string): Promise<VisionResult> {
+  const buffer = await fs.readFile(imageAbsPath);
+  const mime = mimeFromExt(path.extname(imageAbsPath));
   const dataUrl = `data:${mime};base64,${buffer.toString("base64")}`;
 
   async function requestVision(prompt: string, maxTokens: number): Promise<RawVisionJson> {

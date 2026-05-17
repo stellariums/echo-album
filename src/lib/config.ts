@@ -27,10 +27,8 @@ export function apiUrl(path: string): string {
   return joinPath(path);
 }
 
-// Convert a stored asset URL into one the client can actually load.
-// New uploads are absolute Vercel Blob https URLs and pass through unchanged.
-// Legacy rows from the SQLite era have relative paths like "/uploads/x.jpg" —
-// joinPath prepends API_BASE so they still resolve in APK builds.
+// Convert a stored asset path (e.g. "/uploads/img_xxx.jpg") into a URL the
+// client can actually load. In APK builds this prepends the backend host.
 export function assetUrl(path: string | null | undefined): string {
   if (!path) return "";
   return joinPath(path);

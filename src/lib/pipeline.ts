@@ -7,10 +7,17 @@
 // Status timeline (seen by the polling client):
 //   pending → analyzing → composing → {completed|partial|failed}
 
+import path from "node:path";
 import { prisma } from "./db";
 import { analyzeImage, type VisionResult } from "./ai/vision";
 import { transcribeAudio } from "./ai/asr";
 import { generateMemoryCard } from "./ai/llm";
+
+function resolveUploadPath(publicUrl: string): string {
+  // publicUrl is like "/uploads/xxx.jpg" — strip leading slash and join with public/
+  const rel = publicUrl.replace(/^\/+/, "");
+  return path.join(process.cwd(), "public", rel);
+}
 
 export async function processMemory(id: string): Promise<void> {
   const memory = await prisma.memory.findUnique({ where: { id } });
@@ -26,10 +33,11 @@ export async function processMemory(id: string): Promise<void> {
   let speechText: string | null = null;
 
   // --- Step 1: vision + ASR in parallel ---
-  // imageUrl/audioUrl are absolute https URLs (Vercel Blob); the AI helpers
-  // fetch the bytes themselves.
+  const imagePath = resolveUploadPath(memory.imageUrl);
+  const audioPath = memory.audioUrl ? resolveUploadPath(memory.audioUrl) : null;
+
   const tasks: Promise<unknown>[] = [
-    analyzeImage(memory.imageUrl)
+    analyzeImage(imagePath)
       .then((r) => {
         vision = r;
       })
@@ -38,9 +46,9 @@ export async function processMemory(id: string): Promise<void> {
       }),
   ];
 
-  if (memory.audioUrl) {
+  if (audioPath) {
     tasks.push(
-      transcribeAudio(memory.audioUrl)
+      transcribeAudio(audioPath)
         .then((t) => {
           speechText = t;
         })
