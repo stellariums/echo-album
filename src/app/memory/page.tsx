@@ -54,6 +54,9 @@ function MemoryDetail() {
   const [notFoundState, setNotFoundState] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -126,6 +129,31 @@ function MemoryDetail() {
     }
   }
 
+  async function deleteMemory() {
+    if (!memory) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await apiFetch(`/api/memories/${memory.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      // Stop the polling loop before navigating, otherwise it keeps
+      // hitting a now-404 endpoint while React unmounts.
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      router.replace("/memories");
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "删除失败");
+      setDeleting(false);
+    }
+  }
+
   if (notFoundState) {
     return (
       <div className="rounded-3xl bg-white p-10 text-center shadow-soft-sm space-y-3">
@@ -159,15 +187,28 @@ function MemoryDetail() {
 
   return (
     <div className="space-y-5 py-2">
-      <Link
-        href="/"
-        className="inline-flex items-center gap-1 text-sm text-ink-sub hover:text-ink-main transition"
-      >
-        <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
-          <path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
-        </svg>
-        返回
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1 text-sm text-ink-sub hover:text-ink-main transition"
+        >
+          <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
+            <path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+          </svg>
+          返回
+        </Link>
+        <button
+          type="button"
+          onClick={() => setConfirmDelete(true)}
+          aria-label="删除这张记忆"
+          className="inline-flex items-center gap-1 text-sm text-ink-mute hover:text-red-500 transition px-2 py-1 rounded-full"
+        >
+          <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
+            <path d="M9 3v1H4v2h1v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6h1V4h-5V3H9zm-2 3h10v13H7V6zm2 2v9h2V8H9zm4 0v9h2V8h-2z" />
+          </svg>
+          删除
+        </button>
+      </div>
 
       <div className="relative">
         <div className="photo-frame mx-auto max-w-[340px]">
@@ -284,6 +325,60 @@ function MemoryDetail() {
         >
           {retrying ? "重新生成中…" : "重新生成记忆卡"}
         </button>
+      )}
+
+      {confirmDelete && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] flex items-center justify-center px-6"
+          onClick={() => !deleting && setConfirmDelete(false)}
+        >
+          <div
+            className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-soft-lg space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <span className="w-10 h-10 shrink-0 rounded-full bg-red-50 flex items-center justify-center">
+                <svg viewBox="0 0 24 24" className="w-5 h-5 fill-red-500">
+                  <path d="M9 3v1H4v2h1v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6h1V4h-5V3H9zm-2 3h10v13H7V6z" />
+                </svg>
+              </span>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-semibold text-ink-main">
+                  删除这张记忆？
+                </h3>
+                <p className="text-sm text-ink-sub mt-1 leading-relaxed">
+                  「{memory.title ?? "未命名记忆"}」会从相册中移除，照片和录音
+                  无法恢复。
+                </p>
+              </div>
+            </div>
+
+            {deleteError && (
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(false)}
+                disabled={deleting}
+                className="flex-1 rounded-full border border-paper-edge bg-white py-2.5 text-sm font-medium text-ink-sub hover:bg-paper-bg transition disabled:opacity-50"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={deleteMemory}
+                disabled={deleting}
+                className="flex-1 rounded-full bg-red-500 py-2.5 text-sm font-semibold text-white hover:bg-red-600 transition shadow-[0_8px_20px_rgba(239,68,68,0.35)] disabled:opacity-60"
+              >
+                {deleting ? "删除中…" : "确认删除"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
