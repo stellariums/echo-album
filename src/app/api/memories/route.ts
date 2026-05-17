@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { waitUntil } from "@vercel/functions";
 import { randomBytes } from "crypto";
+import { writeFile, mkdir } from "fs/promises";
+import path from "path";
 import { prisma } from "@/lib/db";
 import { processMemory } from "@/lib/pipeline";
 
@@ -62,10 +64,29 @@ function extFromMime(mime: string, fallback: string): string {
 async function saveFile(
   file: File,
   prefix: "img" | "aud",
-  fallbackExt: string
+  fallbackExt: string,
+  req: NextRequest
 ): Promise<string> {
   const ext = extFromMime(file.type, fallbackExt);
   const name = `${prefix}_${Date.now()}_${randomBytes(4).toString("hex")}.${ext}`;
+
+  // Local-FS fallback for dev / self-hosted boxes that don't have a
+  // Vercel Blob token. Files land in /public/uploads/ and are served as
+  // /uploads/<name>. The DB stores an absolute URL — built from
+  // NEXT_PUBLIC_API_BASE if set, else the request's origin — so the APK
+  // (which only knows the tunnel/prod URL) can still fetch it.
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    const uploadsDir = path.join(process.cwd(), "public", "uploads");
+    await mkdir(uploadsDir, { recursive: true });
+    const buffer = Buffer.from(await file.arrayBuffer());
+    await writeFile(path.join(uploadsDir, name), buffer);
+    const base = (
+      process.env.NEXT_PUBLIC_API_BASE ||
+      new URL(req.url).origin
+    ).replace(/\/$/, "");
+    return `${base}/uploads/${name}`;
+  }
+
   // put() streams the file body to Blob and returns a public https URL.
   // We store the absolute URL — the pipeline fetches it back via HTTP, and
   // the client uses it directly for <img>/<audio> playback.
@@ -127,10 +148,10 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    audioUrl = await saveFile(audio, "aud", "webm");
+    audioUrl = await saveFile(audio, "aud", "webm", req);
   }
 
-  const imageUrl = await saveFile(image, "img", "jpg");
+  const imageUrl = await saveFile(image, "img", "jpg", req);
 
   const memory = await prisma.memory.create({
     data: {
