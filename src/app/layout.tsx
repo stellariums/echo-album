@@ -6,6 +6,10 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "回声相册 Echo Album",
   description: "给每张照片加上声音的背面",
+  icons: {
+    icon: "/icon.png",
+    apple: "/apple-icon.png",
+  },
 };
 
 export default function RootLayout({
