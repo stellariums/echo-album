@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
+import { put } from "@vercel/blob";
+import { waitUntil } from "@vercel/functions";
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/db";
 import { processMemory } from "@/lib/pipeline";
 
 export const runtime = "nodejs";
-
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
+// Vision + ASR + LLM pipeline can take ~10s; on Hobby this is the ceiling.
+// On Pro, raise to 60.
+export const maxDuration = 60;
 
 const ALLOWED_IMAGE_MIME = new Set([
   "image/jpeg",
@@ -64,14 +64,16 @@ async function saveFile(
   prefix: "img" | "aud",
   fallbackExt: string
 ): Promise<string> {
-  if (!existsSync(UPLOAD_DIR)) {
-    await mkdir(UPLOAD_DIR, { recursive: true });
-  }
   const ext = extFromMime(file.type, fallbackExt);
   const name = `${prefix}_${Date.now()}_${randomBytes(4).toString("hex")}.${ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(UPLOAD_DIR, name), buffer);
-  return `/uploads/${name}`;
+  // put() streams the file body to Blob and returns a public https URL.
+  // We store the absolute URL — the pipeline fetches it back via HTTP, and
+  // the client uses it directly for <img>/<audio> playback.
+  const { url } = await put(name, file, {
+    access: "public",
+    contentType: baseMimeType(file.type) || undefined,
+  });
+  return url;
 }
 
 export async function POST(req: NextRequest) {
@@ -140,11 +142,14 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // Fire-and-forget the AI pipeline. The HTTP response returns immediately;
-  // the client polls GET /api/memories/[id] for status changes.
-  void processMemory(memory.id).catch((err) => {
-    console.error(`[pipeline] memory ${memory.id} failed:`, err);
-  });
+  // Fire-and-forget the AI pipeline. waitUntil keeps the function alive past
+  // the response so vision/asr/llm can finish. The client polls
+  // GET /api/memories/[id] for status changes.
+  waitUntil(
+    processMemory(memory.id).catch((err) => {
+      console.error(`[pipeline] memory ${memory.id} failed:`, err);
+    })
+  );
 
   return NextResponse.json({
     id: memory.id,

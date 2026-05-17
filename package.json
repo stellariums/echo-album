@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "build:static": "node scripts/build-static.mjs",
     "start": "next start",
     "db:push": "prisma db push",
@@ -20,6 +20,8 @@
     "@capacitor/preferences": "^8.0.1",
     "@capacitor/status-bar": "^8.0.2",
     "@prisma/client": "^5.22.0",
+    "@vercel/blob": "^2.3.3",
+    "@vercel/functions": "^3.6.0",
     "capacitor-voice-recorder": "^7.0.6",
     "next": "^14.2.33",
     "openai": "^6.38.0",

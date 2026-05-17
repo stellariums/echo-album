@@ -2,8 +2,6 @@
 // /v1/audio/transcriptions endpoint. Supports webm/opus from browser MediaRecorder
 // and m4a (MP4-wrapped AAC) from Capacitor's voice recorder.
 
-import fs from "node:fs";
-import path from "node:path";
 import { toFile } from "openai";
 import { getClient, modelId } from "./client";
 
@@ -43,19 +41,24 @@ function isLikelyHallucination(text: string): boolean {
   return HALLUCINATION_PATTERNS.some((re) => re.test(t));
 }
 
-function normalizeExt(audioAbsPath: string): string {
-  const raw = path.extname(audioAbsPath).slice(1).toLowerCase();
+function normalizeExt(audioUrl: string): string {
+  const m = audioUrl.match(/\.([a-z0-9]+)(?:\?|$)/i);
+  const raw = (m ? m[1] : "").toLowerCase();
   if (WHISPER_EXTS.has(raw)) return raw;
   if (raw === "aac") return "m4a"; // see comment above
   return "m4a";
 }
 
-export async function transcribeAudio(audioAbsPath: string): Promise<string> {
+export async function transcribeAudio(audioUrl: string): Promise<string> {
   const client = getClient();
-  const ext = normalizeExt(audioAbsPath);
-  // Read into a buffer + wrap with toFile so we control the filename Whisper
-  // sees in multipart form-data (the SDK uses the stream's path otherwise).
-  const buffer = await fs.promises.readFile(audioAbsPath);
+  const ext = normalizeExt(audioUrl);
+  const fetched = await fetch(audioUrl);
+  if (!fetched.ok) {
+    throw new Error(`Failed to fetch audio (${fetched.status}): ${audioUrl}`);
+  }
+  const buffer = Buffer.from(await fetched.arrayBuffer());
+  // toFile lets us control the filename Whisper sees in multipart form-data
+  // (the SDK uses the stream's path otherwise).
   const file = await toFile(buffer, `audio.${ext}`);
 
   const res = await client.audio.transcriptions.create({
